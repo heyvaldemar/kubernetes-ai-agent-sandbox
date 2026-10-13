@@ -4,9 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.0.1] - 2026-10-13
+
 ### Fixed
 
 - Dependabot updates merge once the sandbox e2e and Verify pass. The auto-merge workflow waited for a workflow named `kind e2e` and read `verification.yml`, neither of which this repository has, so it never ran.
+
+### Changed
+
+- The e2e workflow logs the runner's swap before it turns swap off, and the threat model cites that log: the GitHub-hosted runner had a 3-gibibyte swap file.
+- The README links the supply chain admission repository, the third piece next to the platform.
 
 ## [1.0.0] - 2026-10-13
 
@@ -18,5 +27,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - A threat model, including a finding: on a node with swap, a pod under gVisor is held to its pod's RAM plus unlimited swap, not to its memory limit.
 - Four decision records.
 
-[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/releases/tag/v1.0.0
