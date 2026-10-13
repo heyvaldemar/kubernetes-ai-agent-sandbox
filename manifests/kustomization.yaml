@@ -1,0 +1,20 @@
+# Everything the sandbox is made of. The demo agent's Job is applied on its
+# own (agent/job.yaml), because a Job runs once and a re-apply of a finished
+# one is refused.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - runtimeclass.yaml
+  - namespaces.yaml
+  - admission.yaml
+  - tools.yaml
+  - corp.yaml
+  - network-policies.yaml
+  - quota.yaml
+configMapGenerator:
+  - name: agent-script
+    namespace: agents
+    files:
+      - agent/agent.py
+generatorOptions:
+  disableNameSuffixHash: true

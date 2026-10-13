@@ -1,0 +1,71 @@
+# What a workload must be to run in a sandbox namespace, enforced by the API
+# server itself: a ValidatingAdmissionPolicy is evaluated in-process, so no
+# webhook, controller or add-on has to be running for it to refuse.
+#
+# Pod Security "restricted" (on the namespace) already refuses privileged
+# pods, host namespaces, hostPath, added capabilities and root. This adds what
+# an agent sandbox needs on top: gVisor, no API token, no write to its own
+# image, limits on what it may consume, and images that cannot change under
+# their name.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: agent-sandbox
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets, replicasets, daemonsets]
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs, cronjobs]
+  variables:
+    # One expression for a Pod and for everything that makes Pods.
+    - name: podSpec
+      expression: >-
+        object.kind == 'Pod' ? object.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+        object.spec.template.spec
+    - name: containers
+      expression: >-
+        variables.podSpec.containers +
+        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : [])
+  validations:
+    - expression: >-
+        has(variables.podSpec.runtimeClassName) && variables.podSpec.runtimeClassName == 'gvisor'
+      message: an agent pod runs on gVisor; set spec.runtimeClassName to gvisor
+    - expression: >-
+        has(variables.podSpec.automountServiceAccountToken) &&
+        variables.podSpec.automountServiceAccountToken == false
+      message: an agent pod gets no Kubernetes API token; set automountServiceAccountToken to false
+    - expression: >-
+        variables.containers.all(c, c.image.contains('@sha256:'))
+      message: every image is referenced by digest; a tag can point at different bytes tomorrow
+    - expression: >-
+        variables.containers.all(c, has(c.resources) && has(c.resources.limits) &&
+        'cpu' in c.resources.limits && 'memory' in c.resources.limits)
+      message: every container declares CPU and memory limits
+    - expression: >-
+        variables.containers.all(c, has(c.securityContext) &&
+        has(c.securityContext.readOnlyRootFilesystem) && c.securityContext.readOnlyRootFilesystem)
+      message: every container runs with a read-only root filesystem
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: agent-sandbox
+spec:
+  policyName: agent-sandbox
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        sandbox.heyvaldemar.com/agents: "true"

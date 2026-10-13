@@ -1,0 +1,49 @@
+# The demo agent as a one-off Job in the sandbox. Every line of the pod spec
+# below is one the admission policy requires; leave one out and the API
+# server refuses the Job. Run it, then read its report:
+#
+#   kubectl apply -f manifests/agent/job.yaml
+#   kubectl -n agents logs -f job/agent-demo
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-demo
+  namespace: agents
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-demo
+    spec:
+      runtimeClassName: gvisor
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+          command: [python3, /agent/agent.py]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: TOOL_URL, value: "http://tool-gateway.tools.svc.cluster.local:9898/"}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: agent, mountPath: /agent, readOnly: true}
+      volumes:
+        - name: agent
+          configMap:
+            name: agent-script

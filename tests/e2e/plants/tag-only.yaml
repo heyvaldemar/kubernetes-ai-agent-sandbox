@@ -1,0 +1,29 @@
+# expect: every image is referenced by digest
+# A tag can point at different bytes tomorrow.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tag-only
+  namespace: agents
+spec:
+  runtimeClassName: gvisor
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: agent
+      image: docker.io/library/busybox:1.37
+      command: [sleep, "60"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {cpu: 100m, memory: 32Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]

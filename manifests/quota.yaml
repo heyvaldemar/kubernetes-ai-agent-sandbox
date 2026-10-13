@@ -1,0 +1,16 @@
+# What all agents together may take from the cluster. gVisor's per-pod
+# overhead (runtimeclass.yaml) counts against it too.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: agents
+  namespace: agents
+spec:
+  hard:
+    pods: "10"
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    services.loadbalancers: "0"
+    services.nodeports: "0"

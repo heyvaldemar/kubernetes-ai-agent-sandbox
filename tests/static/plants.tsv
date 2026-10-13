@@ -1,0 +1,4 @@
+# file	old	new	check that must fail	what it plants (each field JSON-encoded)
+"manifests/tools.yaml"	"image: ghcr.io/stefanprodan/podinfo:6.15.0@sha256:ec73780a8425f59ea49f5bc8cdff0d598805a224fbaa1f86c67a244f250fa9da"	"image: ghcr.io/stefanprodan/podinfo:6.15.0"	"images"	"a tool image pinned by tag only"
+"manifests/admission.yaml"	"  validationActions: [Deny]\n"	"  validationAction: [Deny]\n"	"kubeconform"	"a misspelled field in the policy binding"
+"manifests/agent/agent.py"	"def report(check, expected, got, detail=\"\"):"	"def report(check, expected, got, detail=\"\")"	"agent"	"an agent that does not compile"

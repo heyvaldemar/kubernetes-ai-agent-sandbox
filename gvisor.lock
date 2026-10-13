@@ -1,0 +1,6 @@
+# gVisor release used for the runsc runtime, and the SHA-512 of its bundle per
+# architecture, as published next to it. scripts/install-gvisor.sh refuses a
+# bundle whose hash does not match.
+# release   arch     sha512
+20261005    x86_64  79869ae9a589355a46d46fdac068d9a954e741741ffe77c64e38c56ea955498c1cb04e9bce44e1cce5155333e6b76bee72347c6661bb7c78fd2fe3aad198c8fe
+20261005    aarch64  1bc58be6f881264ced1df8ff61db0205531abedcace005585ac5637c5c987831062b365f99f270ef0939849f130344b84e0f1a663294406f798b8f7c8cd326ac

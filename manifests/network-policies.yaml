@@ -1,0 +1,89 @@
+# Two walls. The first is the sandbox's own: nothing leaves an agent pod but
+# DNS and the one tool it is given. The second belongs to everyone else:
+# corp refuses connections from any sandbox namespace, so opening the first
+# wall by mistake does not open the second.
+#
+# NetworkPolicy works on addresses and ports, not on names. An agent cannot
+# connect anywhere it is not allowed to, but it can still resolve names, and
+# DNS itself can carry data out; docs/threat-model.md says so.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tool-gateway
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tools
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tool-gateway
+      ports:
+        - {protocol: TCP, port: 9898}
+---
+# The tool takes calls from sandboxes and nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tool-gateway-from-sandboxes
+  namespace: tools
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tool-gateway
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              sandbox.heyvaldemar.com/agents: "true"
+      ports:
+        - {protocol: TCP, port: 9898}
+---
+# The second wall: every namespace may reach corp except a sandbox.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: refuse-sandboxes
+  namespace: corp
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - {key: sandbox.heyvaldemar.com/agents, operator: DoesNotExist}

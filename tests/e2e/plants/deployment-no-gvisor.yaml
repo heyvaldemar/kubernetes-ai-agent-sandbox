@@ -1,0 +1,35 @@
+# expect: an agent pod runs on gVisor
+# The same rule through a controller: a Deployment whose pods would run on the
+# node's kernel is refused when it is created, not when its pods fail later.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-no-gvisor
+  namespace: agents
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: deployment-no-gvisor}
+  template:
+    metadata:
+      labels: {app: deployment-no-gvisor}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command: [sleep, "60"]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 32Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

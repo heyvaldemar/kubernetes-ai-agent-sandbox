@@ -1,0 +1,47 @@
+name: Verify
+
+# The checks that need no cluster: workflows and shell scripts linted, every
+# manifest valid for Kubernetes 1.37, every image by digest, the agent
+# compiles, and each of those checks shown the violation it exists for.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Static checks, and that each can fail
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned CI images
+        run: grep -E '^[A-Z_]+=' ci-images.pins >> "$GITHUB_ENV"
+
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/mnt" -w /mnt "$ACTIONLINT_IMAGE" -color
+
+      - name: shellcheck
+        run: docker run --rm -v "$PWD:/mnt" -w /mnt "$SHELLCHECK_IMAGE" -x scripts/*.sh tests/e2e/*.sh
+
+      - name: Install the pinned tools
+        run: ./scripts/install-tools.sh >> "$GITHUB_PATH"
+
+      - name: Static checks
+        run: ./scripts/validate.sh
+
+      - name: Each check, shown its planted violation
+        run: python3 tests/static/plant_violations.py

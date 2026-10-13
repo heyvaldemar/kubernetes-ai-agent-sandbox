@@ -1,0 +1,28 @@
+# agents: where agent workloads run. The sandbox label is what the admission
+# policy binds to and what the other namespaces' network policies refuse.
+# tools: the services an agent is allowed to call.
+# corp: stands for everything else in the cluster an agent must not reach.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agents
+  labels:
+    sandbox.heyvaldemar.com/agents: "true"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: corp
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
