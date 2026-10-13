@@ -110,6 +110,10 @@ This repository is the agent sandbox that sits next to [aws-eks-reference-platfo
 
 [kubernetes-supply-chain-admission](https://github.com/heyvaldemar/kubernetes-supply-chain-admission) is the third piece: which images the cluster will run at all.
 
+## Questions, bugs and changes
+
+Open an [issue](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/issues) for a bug, a question or an idea. Security reports go privately, as [SECURITY.md](SECURITY.md) describes. Changes are welcome as pull requests: CI runs the same checks on them as on main, and a change ships with the check that proves it.
+
 ## How this is built
 
 One maintainer and an AI agent. The agent writes most of the code; the decisions are mine, and so is the verification. Nothing merges on the agent's report that it works: it merges on the checks above, and each of them has been shown the failure it exists to catch. The swap finding in the threat model came from a check that failed during the build.
