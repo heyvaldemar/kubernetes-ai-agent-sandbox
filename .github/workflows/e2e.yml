@@ -34,11 +34,14 @@ jobs:
       - name: Install the pinned tools
         run: ./scripts/install-tools.sh >> "$GITHUB_PATH"
 
-      # GitHub's runners have swap. Under gVisor a pod's memory limit is
-      # then RAM plus unlimited swap (docs/threat-model.md); production
-      # nodes run without it, and so does this one.
+      # Under gVisor, on a node with swap, a pod's memory limit is its RAM
+      # plus unlimited swap (docs/threat-model.md). Production nodes run
+      # without it, and so does this one. The log shows what the runner had.
       - name: No swap, as on a production node
-        run: sudo swapoff -a && cat /proc/swaps
+        run: |
+          echo "before:"; cat /proc/swaps
+          sudo swapoff -a
+          echo "after:"; cat /proc/swaps
 
       - name: Create the kind cluster
         run: kind create cluster --config kind/cluster.yaml --wait 120s
