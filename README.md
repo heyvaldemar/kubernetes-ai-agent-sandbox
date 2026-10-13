@@ -80,6 +80,10 @@ make down
 
 `make test` fails on a machine with swap, on purpose: under gVisor a pod's memory limit is then the pod's RAM plus unlimited swap. Docker Desktop has swap; the CI runner turns it off. The [threat model](docs/threat-model.md) explains why.
 
+## Cost
+
+Nothing in a cloud. The sandbox runs on kind, CPU only; the demo agent calls no model and holds no API key. CI is a fresh kind cluster on a GitHub-hosted runner, about three minutes per run. On EKS the cost is the node group the agents run on: gVisor adds 10m CPU and 32Mi of memory per pod, which the RuntimeClass declares so the scheduler and the quota count it.
+
 ## What it does not do
 
 The [threat model](docs/threat-model.md) lists every threat with its control and check, and what is not covered: DNS stays open and can carry data; the tool gateway is trusted, so a tool that fetches arbitrary URLs is an exit; NetworkPolicy allows addresses, not names; there is no runtime detection and no audit trail beyond the agent's own report. On EKS, agent workloads would run on their own tainted node group, on nodes without swap.
