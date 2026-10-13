@@ -1,7 +1,7 @@
 name: Dependabot auto-merge
 
 # Merges a Dependabot pull request once BOTH of this repository's gates have
-# finished green for that commit: Verification and the kind e2e run. It is
+# finished green for that commit: Verify and the e2e run. It is
 # triggered by the e2e run, the slower of the two, and checks the other.
 #
 # NOT `gh pr merge --auto`. That hands the decision to GitHub's auto-merge,
@@ -12,7 +12,7 @@ name: Dependabot auto-merge
 # the run did not conclude success, this job does nothing at all.
 on:
   workflow_run:
-    workflows: ["kind e2e"]
+    workflows: ["Sandbox e2e"]
     types: [completed]
 
 # READ AT THE TOP, WRITE ONLY WHERE IT IS USED. A top-level block applies to
@@ -51,14 +51,14 @@ jobs:
             echo "no open Dependabot pull request at $SHA — nothing to do"
             exit 0
           fi
-          # The e2e run passed; the static Verification must have too.
-          verification="$(gh api "repos/$REPO/actions/workflows/verification.yml/runs?head_sha=$SHA&event=pull_request" \
+          # The e2e run passed; the static Verify must have too.
+          verification="$(gh api "repos/$REPO/actions/workflows/verify.yml/runs?head_sha=$SHA&event=pull_request" \
                            --jq '.workflow_runs[0].conclusion // "missing"')"
           if [ "$verification" != success ]; then
-            echo "Verification for $SHA is '$verification'; not merging #$pr"
+            echo "Verify for $SHA is '$verification'; not merging #$pr"
             exit 0
           fi
-          echo "kind e2e and Verification passed for #$pr; merging"
+          echo "e2e and Verify passed for #$pr; merging"
           # Squash where the repository allows it, a plain merge where it does
           # not. A repository with squash disabled would otherwise fail here
           # every week, and a job that fails every week is one nobody reads.
@@ -75,5 +75,5 @@ jobs:
           # verification this job was waiting on is asked to run again, on main
           # as merged. The file to dispatch comes from the event, not a guess.
           gh workflow run "$(basename "$VERIFY")" --repo "$REPO" --ref main
-          gh workflow run verification.yml --repo "$REPO" --ref main
-          echo "kind e2e and Verification dispatched on main as merged"
+          gh workflow run verify.yml --repo "$REPO" --ref main
+          echo "e2e and Verify dispatched on main as merged"

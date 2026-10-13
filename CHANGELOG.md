@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Fixed
+
+- Dependabot updates merge once the sandbox e2e and Verify pass. The auto-merge workflow waited for a workflow named `kind e2e` and read `verification.yml`, neither of which this repository has, so it never ran.
 
 ## [1.0.0] - 2026-10-13
 
