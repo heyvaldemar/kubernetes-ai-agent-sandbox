@@ -39,7 +39,7 @@ On a node with swap, a pod running under gVisor is not held to its memory limit.
 
 The reason is where gVisor runs. Kubernetes sets the memory limit and `memory.swap.max=0` on the cgroup of each container. gVisor runs the pod's processes inside its own sandbox process, and that process sits in the cgroup of the pod's sandbox container, not the application container's. The pod's cgroup above it holds the pod's total limit (the container's 128Mi plus the 32Mi overhead the RuntimeClass declares), and neither carries `memory.swap.max=0`. The application container's cgroup, the one with the limit and no swap, was empty. Everything past 160Mi went to swap until swap ran out.
 
-Production Kubernetes nodes usually run without swap. This repository's CI turns swap off before it creates the cluster, and the e2e run fails if the node has any. A cluster that enables swap on its nodes for other reasons needs it accounted for before agent workloads run there.
+Production Kubernetes nodes usually run without swap. Machines people test on often have it: the GitHub-hosted runner this repository's CI uses had a 3 GiB swap file ([the e2e log](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/runs/38346033604) prints it before turning it off). CI turns swap off before it creates the cluster, and the e2e run fails if the node has any; with swap off, the same gVisor pod is killed at 112 MiB. A cluster that enables swap on its nodes for other reasons needs it accounted for before agent workloads run there.
 
 ## Residual risks
 
