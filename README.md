@@ -4,6 +4,10 @@
 [![Verify](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/workflows/verify.yml/badge.svg)](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/workflows/verify.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/heyvaldemar/kubernetes-ai-agent-sandbox/badge)](https://scorecard.dev/viewer/?uri=github.com/heyvaldemar/kubernetes-ai-agent-sandbox)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15463/badge)](https://www.bestpractices.dev/projects/15463)
+[![e2e, last 30 days](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fheyvaldemar%2Fkubernetes-ai-agent-sandbox%2Fstatus%2Fbadge-days.json)](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/blob/status/status.json)
+[![checks](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fheyvaldemar%2Fkubernetes-ai-agent-sandbox%2Fstatus%2Fbadge-checks.json)](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/blob/status/status.json)
+
+The second row of badges is not typed by hand: it is the e2e workflow's last 30 days on main, rewritten after every run by [`.github/workflows/status.yml`](.github/workflows/status.yml) into the [`status`](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/tree/status) branch.
 
 An AI agent will be talked into something by what it reads. This repository is the sandbox around it on Kubernetes: the agent runs on gVisor's user-space kernel instead of the node's, it can call the one tool it was given and nothing else, it has no credentials to steal and no image to modify, and the API server refuses any agent workload that is not set up that way. Every change is tested on kind by a demo agent that is fooled on purpose.
 

@@ -209,6 +209,22 @@ PY
 grep -q "exceeded quota" <<<"$quota" && pass "a pod asking for 3Gi is refused by the namespace quota" \
   || fail "a pod asking for 3Gi was not refused by the quota: $quota"
 
+# A copy the status workflow reads (scripts/status.py), when one is asked for.
+if [ -n "${E2E_RESULTS:-}" ]; then
+  { printf 'R\t%s\n' "${results[@]}"; } | python3 -c '
+import json, sys
+checks, measured = [], []
+for line in sys.stdin:
+    kind, _, text = line.rstrip("\n").partition("\t")
+    if kind == "R" and text:
+        state, _, name = text.partition("  ")
+        checks.append({"state": state.strip(), "name": name.strip()})
+    elif kind == "M" and text:
+        measured.append(text)
+json.dump({"checks": checks, "measured": measured}, sys.stdout)
+' >"$E2E_RESULTS"
+fi
+
 # --- summary -----------------------------------------------------------------
 printf '\n'
 printf '%s\n' "${results[@]}"

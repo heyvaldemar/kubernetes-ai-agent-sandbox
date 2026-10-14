@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Live status: every e2e run uploads its checks and measurements (`E2E_RESULTS`), and `.github/workflows/status.yml` rewrites the `status` branch after each run with the last 30 days on main: green days, the streak, the latest checks (`scripts/status.py`). The README's second row of badges reads it.
 - CodeQL (security-extended) on the Python and the workflows, on every push and weekly.
 - The OpenSSF Best Practices badge, passing, and a README section on where a bug, a question or a change goes.
 
