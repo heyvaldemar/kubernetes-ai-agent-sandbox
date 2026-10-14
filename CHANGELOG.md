@@ -4,7 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Added
+
+- CodeQL (security-extended) on the Python and the workflows, on every push and weekly.
+- The OpenSSF Best Practices badge, passing, and a README section on where a bug, a question or a change goes.
+
+### Changed
+
+- The threat model cites [gVisor issue 13267](https://github.com/google/gvisor/issues/13267), the LimitedSwap variant of the swap finding, fixed in June 2026 and included in the pinned release 20261005, and links the report of the default NoSwap case this repository measured, [gVisor issue 15756](https://github.com/google/gvisor/issues/15756).
+
+### Removed
+
+- A compiled Python file committed under `manifests/agent/__pycache__/`; `.gitignore` keeps them out.
 
 ## [1.0.1] - 2026-10-13
 
