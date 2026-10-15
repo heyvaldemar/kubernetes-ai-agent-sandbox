@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-14
+
 ### Added
 
 - An MCP server as the agents' only door to their tools ([ADR 5](docs/decisions/0005-an-mcp-server-as-the-only-door.md)). It speaks MCP 2026-07-28 over Streamable HTTP, runs on gVisor and is written in standard-library Python. Each agent proves who it is with a ServiceAccount token bound to the server's audience, checked by TokenReview. `policy.json` grants each identity its tools and resources; anything else is answered as if it did not exist, and the destructive `delete_record` is granted to no one. The server holds the records key, limits each identity to ten calls in ten seconds, validates arguments against each tool's schema, caps and strips results, refuses browser origins, and logs every decision with the caller's pod.
@@ -56,6 +58,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A threat model, including a finding: on a node with swap, a pod under gVisor is held to its pod's RAM plus unlimited swap, not to its memory limit.
 - Four decision records.
 
-[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/releases/tag/v1.0.0
