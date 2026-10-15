@@ -154,7 +154,7 @@ docs/                 the threat model and the decisions
 
 This repository is the agent sandbox that sits next to [aws-eks-reference-platform](https://github.com/heyvaldemar/aws-eks-reference-platform): the platform's tenants, admission and GitOps, narrowed to one question, what an untrusted agent can reach.
 
-[kubernetes-supply-chain-admission](https://github.com/heyvaldemar/kubernetes-supply-chain-admission) is the third piece: which images the cluster will run at all.
+[kubernetes-supply-chain-admission](https://github.com/heyvaldemar/kubernetes-supply-chain-admission) is the third piece: which images the cluster will run at all. [kubernetes-postgres-recovery](https://github.com/heyvaldemar/kubernetes-postgres-recovery) is the fourth: the database a tenant would run, restored every day three ways.
 
 ## Questions, bugs and changes
 
