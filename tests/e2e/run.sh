@@ -9,12 +9,17 @@
 #   0. the node has no swap (a gVisor pod's memory limit depends on it)
 #   1. a sandbox pod runs on gVisor's kernel, not the node's
 #   2. admission refuses each planted manifest in tests/e2e/plants for the
-#      reason it names, and admits the compliant control
-#   3. the demo agent, hijacked by a prompt injection in its tool's answer,
-#      reaches its tool and nothing else
-#   4. from outside the sandbox, the same addresses answer
-#   5. with the sandbox's egress opened by mistake, corp still refuses it
-#   6. a sandbox pod is killed at its memory limit, and the namespace quota
+#      reason it names, and admits the compliant controls
+#   3. the demo agents: one hijacked by a prompt injection in its tool's
+#      answer reaches the MCP server, its granted tool and nothing else; one
+#      granted the records tool gets a record without holding the key
+#   4. the MCP server: the API server and the MCP server each refuse the
+#      other's token; every decision is in the MCP server's log with the
+#      caller's pod; the records key exists only where it is used
+#   5. from outside the sandbox, the same addresses answer
+#   6. with the sandbox's egress opened by mistake, corp and the tools'
+#      upstreams still refuse it
+#   7. a sandbox pod is killed at its memory limit, and the namespace quota
 #      refuses a pod that would exceed it
 #
 # Needs kubectl and python3. Writes a summary to $GITHUB_STEP_SUMMARY when set.
@@ -37,7 +42,7 @@ step() { printf '\n== %s\n' "$*"; }
 # shellcheck disable=SC2329  # called by the EXIT trap
 cleanup() {
   kubectl -n agents delete networkpolicy e2e-open-egress --ignore-not-found >/dev/null 2>&1
-  kubectl -n agents delete pod e2e-probe e2e-wall e2e-hog --ignore-not-found --wait=false >/dev/null 2>&1
+  kubectl -n agents delete pod e2e-probe e2e-wall e2e-hog e2e-tokens --ignore-not-found --wait=false >/dev/null 2>&1
   kubectl delete namespace e2e-control --ignore-not-found --wait=false >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -63,6 +68,16 @@ print(json.dumps({
                           "capabilities": {"drop": ["ALL"]}}}]}}))
 PY
 }
+# Wait for a Job to succeed or fail. (A finished Job has two True
+# conditions in Kubernetes 1.37, so `kubectl wait --for=jsonpath` on them
+# matches twice and errors.)
+job_done() {
+  for _ in $(seq 1 90); do
+    [ -n "$(kubectl -n agents get job "$1" -o jsonpath='{.status.succeeded}{.status.failed}' 2>/dev/null)" ] && return 0
+    sleep 2
+  done
+  return 1
+}
 # Wait for a pod to finish; prints its phase.
 finished() {
   local phase=""
@@ -79,6 +94,10 @@ finished() {
 probe_script='for u in "$@"; do printf "%s %s\n" "$u" "$(curl -s -o /dev/null -w "%{http_code}" --max-time 6 "$u")"; done'
 CORP=http://internal-records.corp.svc.cluster.local:9898/
 OUTSIDE=https://example.com/
+RECORDS=http://records-api.corp.svc.cluster.local:8080/healthz
+REPORT=http://tool-gateway.tools.svc.cluster.local:9898/
+MCP=http://mcp-server.mcp.svc.cluster.local:8080/mcp
+MCP_AUDIENCE=mcp.sandbox.heyvaldemar.com
 
 # --- 0 -----------------------------------------------------------------------
 step "0. the node has no swap"
@@ -119,12 +138,13 @@ for plant in "$HERE"/plants/*.yaml; do
 done
 
 # --- 3 -----------------------------------------------------------------------
-step "3. the demo agent, hijacked by its tool's answer"
-kubectl -n agents delete job agent-demo --ignore-not-found --wait=true >/dev/null 2>&1
+step "3. the demo agents, through the MCP server"
+kubectl -n agents delete job agent-demo records-clerk --ignore-not-found --wait=true >/dev/null 2>&1
 kubectl apply -f "$ROOT/manifests/agent/job.yaml" >/dev/null
-kubectl -n agents wait --for=jsonpath='{.status.conditions[?(@.status=="True")].type}' job/agent-demo --timeout=180s >/dev/null 2>&1
-report="$(kubectl -n agents logs job/agent-demo 2>/dev/null)"
-lines="$(python3 - <<'PY' "$report"
+for job in agent-demo records-clerk; do
+  job_done "$job" || true
+  report="$(kubectl -n agents logs "job/$job" 2>/dev/null)"
+  lines="$(python3 - "$report" <<'PY'
 import json, sys
 for raw in sys.argv[1].splitlines():
     try:
@@ -132,17 +152,75 @@ for raw in sys.argv[1].splitlines():
     except ValueError:
         continue
     if "check" in r:
-        print("%s\t%s\t%s\t%s" % ("ok" if r["ok"] else "bad", r["check"], r["expected"], r["got"]))
+        print("%s\t%s\t%s\t%s\t%s" % ("ok" if r["ok"] else "bad", r.get("agent", "agent"), r["check"], r["expected"], r["got"]))
 PY
 )"
-if [ -z "$lines" ]; then fail "the agent wrote no report: ${report:0:300}"; fi
-while IFS=$'\t' read -r ok check expected got; do
-  [ -z "$ok" ] && continue
-  [ "$ok" = ok ] && pass "agent: $check: $got" || fail "agent: $check: expected $expected, got $got"
-done <<<"$lines"
+  if [ -z "$lines" ]; then fail "$job wrote no report: ${report:0:300}"; fi
+  while IFS=$'\t' read -r ok agent check expected got; do
+    [ -z "$ok" ] && continue
+    [ "$ok" = ok ] && pass "$agent: $check: $got" || fail "$agent: $check: expected $expected, got $got"
+  done <<<"$lines"
+done
 
 # --- 4 -----------------------------------------------------------------------
-step "4. the same addresses, from outside the sandbox"
+step "4. the MCP server"
+# Each token is good for one audience. The MCP token goes to the API server
+# from here; the API token goes to the MCP server from a sandbox pod, on
+# stdin, so neither is ever on a command line or in a pod spec.
+mcp_token="$(kubectl -n agents create token researcher --audience "$MCP_AUDIENCE" --duration 10m)"
+api_token="$(kubectl -n agents create token researcher --duration 10m)"
+api_server="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+code="$(printf 'header = "Authorization: Bearer %s"\n' "$mcp_token" | curl -sk -o /dev/null -w '%{http_code}' --config - "$api_server/api")"
+[ "$code" = 401 ] && pass "the API server refuses the MCP token: HTTP 401" \
+  || fail "the API server answered the MCP token with HTTP $code"
+sandbox_pod e2e-tokens "$CURL" 32Mi sleep 300
+kubectl -n agents wait --for=condition=Ready pod/e2e-tokens --timeout=120s >/dev/null 2>&1
+# shellcheck disable=SC2016  # expanded by the pod's shell
+ask_mcp='read -r t; printf "header = \"Authorization: Bearer %s\"\n" "$t" | curl -s -o /dev/null -w "%{http_code}" --max-time 6 --config - -X POST -H "Content-Type: application/json" -H "MCP-Protocol-Version: 2026-07-28" -H "Mcp-Method: tools/list" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\",\"io.modelcontextprotocol/clientCapabilities\":{}}}}" "$1"'
+with_api="$(printf '%s\n' "$api_token" | kubectl -n agents exec -i e2e-tokens -- sh -c "$ask_mcp" sh "$MCP" 2>/dev/null)"
+with_mcp="$(printf '%s\n' "$mcp_token" | kubectl -n agents exec -i e2e-tokens -- sh -c "$ask_mcp" sh "$MCP" 2>/dev/null)"
+unset mcp_token api_token
+if [ "$with_api" = 401 ] && [ "$with_mcp" = 200 ]; then
+  pass "the MCP server refuses a Kubernetes API token (401) and takes its own audience's (200)"
+else
+  fail "the MCP server answered an API token with ${with_api:-nothing} and its own token with ${with_mcp:-nothing}"
+fi
+kubectl -n agents delete pod e2e-tokens --wait=false >/dev/null 2>&1
+
+audit="$(kubectl -n mcp logs deployment/mcp-server 2>/dev/null)"
+records_log="$(kubectl -n corp logs deployment/records-api 2>/dev/null)"
+while IFS=$'\t' read -r ok what; do
+  [ -z "$ok" ] && continue
+  [ "$ok" = ok ] && pass "audit: $what" || fail "audit: $what"
+done < <(python3 - "$audit" "$records_log" <<'PY'
+import json, sys
+lines = [json.loads(x) for x in sys.argv[1].splitlines() if x.startswith("{")]
+records = [json.loads(x) for x in sys.argv[2].splitlines() if x.startswith("{")]
+def has(**want):
+    return [l for l in lines if all(l.get(k) == v for k, v in want.items())]
+denied = has(identity="system:serviceaccount:agents:researcher", name="records_lookup", decision="denied")
+print("%s\tthe researcher's attempt at the records tool is logged as denied, with its pod%s" % (
+    "ok" if denied and denied[0].get("pod", "").startswith("agent-demo-") else "bad",
+    " (%s)" % denied[0]["pod"] if denied else ""))
+allowed = has(identity="system:serviceaccount:agents:records-clerk", name="records_lookup", decision="allowed")
+print("%s\tthe records clerk's lookup is logged as allowed, with its pod" % (
+    "ok" if allowed and allowed[0].get("pod", "").startswith("records-clerk-") else "bad"))
+print("%s\tthe destructive tool was never allowed to anyone" % (
+    "bad" if has(name="delete_record", decision="allowed") else "ok"))
+limited = has(identity="system:serviceaccount:agents:researcher", decision="rate_limited")
+print("%s\tthe researcher's loop is logged as rate limited, %d times" % ("ok" if limited else "bad", len(limited)))
+print("%s\tthe records service saw the lookup, and no delete" % (
+    "ok" if any(r["method"] == "GET" and r["path"] == "/records/C0001" and r["status"] == 200 for r in records)
+    and not any(r["method"] == "DELETE" for r in records) else "bad"))
+PY
+)
+
+holders="$(kubectl get secrets -A --field-selector metadata.name=records-api-key -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{end}')"
+[ "$holders" = "corp mcp " ] && pass "the records key exists in corp and mcp only, never in a sandbox namespace" \
+  || fail "the records key exists in: ${holders:-nowhere}"
+
+# --- 5 -----------------------------------------------------------------------
+step "5. the same addresses, from outside the sandbox"
 kubectl create namespace e2e-control --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl -n e2e-control run e2e-control --image="$CURL" --restart=Never --command -- sh -c "$probe_script" sh "$CORP" "$OUTSIDE" >/dev/null
 [ "$(finished e2e-control e2e-control)" = Succeeded ] || true
@@ -153,8 +231,8 @@ else
   fail "the control outside the sandbox did not reach corp and the internet: ${control:-no output}"
 fi
 
-# --- 5 -----------------------------------------------------------------------
-step "5. the first wall opened by mistake; the second holds"
+# --- 6 -----------------------------------------------------------------------
+step "6. the first wall opened by mistake; the second holds"
 kubectl apply -f - >/dev/null <<'EOF'
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -167,18 +245,19 @@ spec:
   egress:
     - {}
 EOF
-sandbox_pod e2e-wall "$CURL" 64Mi sh -c "$probe_script" sh "$CORP" "$OUTSIDE"
+sandbox_pod e2e-wall "$CURL" 64Mi sh -c "$probe_script" sh "$CORP" "$OUTSIDE" "$RECORDS" "$REPORT"
 finished agents e2e-wall >/dev/null
 wall="$(kubectl -n agents logs e2e-wall 2>/dev/null)"
 kubectl -n agents delete networkpolicy e2e-open-egress >/dev/null 2>&1
-if grep -q "^$OUTSIDE 200" <<<"$wall" && grep -q "^$CORP 000" <<<"$wall"; then
-  pass "with all egress allowed the internet answers the sandbox, and corp still refuses it"
+if grep -q "^$OUTSIDE 200" <<<"$wall" && grep -q "^$CORP 000" <<<"$wall" &&
+   grep -q "^$RECORDS 000" <<<"$wall" && grep -q "^$REPORT 000" <<<"$wall"; then
+  pass "with all egress allowed the internet answers the sandbox; corp, the records service and the report service still refuse it"
 else
   fail "with egress opened: ${wall:-no output}"
 fi
 
-# --- 6 -----------------------------------------------------------------------
-step "6. limits"
+# --- 7 -----------------------------------------------------------------------
+step "7. limits"
 sandbox_pod e2e-hog "$PYTHON" 128Mi python3 -c "
 import time
 chunks = []

@@ -1,9 +1,10 @@
 name: Sandbox e2e
 
 # A fresh kind cluster with gVisor, the sandbox applied, and
-# tests/e2e/run.sh against it: the demo agent hijacked by its tool's answer,
-# admission refusing each planted manifest, both network walls, and the
-# memory limit held.
+# tests/e2e/run.sh against it: two demo agents through the MCP server, one
+# hijacked by its tool's answer; admission refusing each planted manifest;
+# each token refused where it does not belong; the MCP server's audit log;
+# both network walls; and the memory limit held.
 on:
   push:
     branches: [main]
@@ -50,10 +51,7 @@ jobs:
         run: ./scripts/install-gvisor.sh
 
       - name: Apply the sandbox
-        run: |
-          kubectl apply -k manifests/
-          kubectl -n tools rollout status deployment/tool-gateway --timeout=180s
-          kubectl -n corp rollout status deployment/internal-records --timeout=180s
+        run: ./scripts/install-sandbox.sh
 
       - name: Run the checks
         env:
@@ -75,3 +73,5 @@ jobs:
           kubectl get pods -A -o wide
           kubectl get events -A --sort-by=.lastTimestamp | tail -40
           kubectl -n agents logs job/agent-demo || true
+          kubectl -n agents logs job/records-clerk || true
+          kubectl -n mcp logs deployment/mcp-server || true

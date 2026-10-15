@@ -24,6 +24,10 @@ The `agents` namespace denies all ingress and egress by default (`network-polici
 - **FQDN-aware network policies (Cilium).** Names instead of IP ranges in the policy itself; ties the sandbox to one network plugin.
 - **A service mesh with mTLS and authorization policies.** Identity-based rules between services; far more than an agent sandbox needs to start with.
 
+## Revisited, 2026-10-14
+
+The one destination is now the MCP server ([ADR 5](0005-an-mcp-server-as-the-only-door.md)), on TCP 8080 in `mcp`. The tool gateway takes calls only from the MCP server, and the records service behind the records tool sits in `corp`, behind the second wall. With the sandbox's egress opened on purpose, the e2e run shows `corp`, the records service and the report service all still refusing it.
+
 ## How to explain this to a customer
 
 An agent can talk to the one tool it was given and nothing else: not the internet, not the cloud's credential service, not other teams' systems, not the cluster's control plane. The systems it must never reach also refuse it themselves, so a single mistake in the agent's own rules does not open them.

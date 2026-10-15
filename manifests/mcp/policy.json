@@ -1,0 +1,14 @@
+{
+  "audience": "mcp.sandbox.heyvaldemar.com",
+  "rate_limit": {"calls": 10, "seconds": 10},
+  "identities": {
+    "system:serviceaccount:agents:researcher": {
+      "tools": ["quarterly_report"],
+      "resources": ["report://quarterly"]
+    },
+    "system:serviceaccount:agents:records-clerk": {
+      "tools": ["records_lookup"],
+      "resources": ["records://index"]
+    }
+  }
+}

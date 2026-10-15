@@ -1,0 +1,97 @@
+# The MCP server: the agents' only door to their tools (server.py says what
+# it checks, policy.json what each agent is granted).
+#
+# It runs on gVisor like the agents, because it parses whatever a fooled
+# agent sends. It holds the one credential its tools need, the records key,
+# and its own Kubernetes token can do one thing: ask the API server whether
+# an agent's token is genuine (system:auth-delegator, TokenReview).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-server
+  namespace: mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-server-token-review
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: mcp-server
+    namespace: mcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: mcp
+  labels:
+    app.kubernetes.io/name: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-server
+    spec:
+      runtimeClassName: gvisor
+      serviceAccountName: mcp-server
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+          command: [python3, /app/server.py]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: MCP_POLICY, value: /app/policy.json}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          resources:
+            requests: {cpu: 20m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: app, mountPath: /app, readOnly: true}
+            - {name: records-key, mountPath: /var/run/secrets/records, readOnly: true}
+      volumes:
+        - name: app
+          configMap:
+            name: mcp-server
+        # Created by scripts/install-sandbox.sh, never in Git.
+        - name: records-key
+          secret:
+            secretName: records-api-key
+            defaultMode: 0440
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+  namespace: mcp
+spec:
+  selector:
+    app.kubernetes.io/name: mcp-server
+  ports:
+    - {name: http, port: 8080, targetPort: http}

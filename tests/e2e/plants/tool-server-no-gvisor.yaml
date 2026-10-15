@@ -1,0 +1,29 @@
+# expect: a tool server runs on gVisor
+# A tool server parses what a fooled agent sends; on the node's kernel, a
+# parser bug is a node bug.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tool-server-no-gvisor
+  namespace: mcp
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: agent
+      image: docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      command: [sleep, "60"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {cpu: 100m, memory: 32Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]

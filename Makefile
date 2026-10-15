@@ -13,15 +13,16 @@ tools:
 up: tools
 	kind create cluster --config kind/cluster.yaml --wait 120s
 	./scripts/install-gvisor.sh
-	kubectl apply -k manifests/
-	kubectl -n tools rollout status deployment/tool-gateway --timeout=180s
-	kubectl -n corp rollout status deployment/internal-records --timeout=180s
+	./scripts/install-sandbox.sh
 
 demo: tools
-	-kubectl -n agents delete job agent-demo --ignore-not-found --wait=true
+	-kubectl -n agents delete job agent-demo records-clerk --ignore-not-found --wait=true
 	kubectl apply -f manifests/agent/job.yaml
-	kubectl -n agents wait --for=jsonpath='{.status.conditions[?(@.status=="True")].type}' job/agent-demo --timeout=180s
+	for j in agent-demo records-clerk; do \
+	  until kubectl -n agents get job $$j -o jsonpath='{.status.succeeded}{.status.failed}' | grep -q .; do sleep 2; done; \
+	done
 	kubectl -n agents logs job/agent-demo
+	kubectl -n agents logs job/records-clerk
 
 test: tools
 	./tests/e2e/run.sh

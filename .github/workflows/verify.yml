@@ -2,7 +2,9 @@ name: Verify
 
 # The checks that need no cluster: workflows and shell scripts linted, every
 # manifest valid for Kubernetes 1.37, every image by digest, the agent
-# compiles, and each of those checks shown the violation it exists for.
+# compiles, the MCP server's grants and protocol, and each of those checks
+# shown the violation it exists for. Then the official MCP Python SDK,
+# pinned by hash, drives the MCP server as a client.
 on:
   push:
     branches: [main]
@@ -47,3 +49,12 @@ jobs:
 
       - name: Each check, shown its planted violation
         run: python3 tests/static/plant_violations.py
+
+      # A server only its own tests understand proves little: the protocol's
+      # reference client discovers it, lists, calls and reads as two
+      # identities, and is refused what each is not granted.
+      - name: The official MCP SDK as the server's client
+        run: |
+          python3 -m venv "$RUNNER_TEMP/mcp-sdk"
+          "$RUNNER_TEMP/mcp-sdk/bin/pip" install --quiet --require-hashes --no-deps -r tests/mcp/requirements.txt
+          "$RUNNER_TEMP/mcp-sdk/bin/python" tests/mcp/sdk_client.py

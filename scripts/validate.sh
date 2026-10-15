@@ -5,6 +5,12 @@
 #                 Kubernetes 1.37 objects
 #   images        every image outside the plants is referenced by digest
 #   agent         the demo agent compiles
+#   mcp           the MCP server and the records service compile; every
+#                 grant in policy.json names a tool or resource the server
+#                 has, and none is a destructive tool; the audience the
+#                 server checks is the one admission and the agents' Jobs
+#                 use; and the server's protocol and grant tests pass
+#                 (tests/mcp/test_server.py)
 #
 # With no arguments every check runs. tests/static/plants.tsv shows each
 # check the violation it exists for (tests/static/plant_violations.py).
@@ -39,8 +45,41 @@ check_images() {
 
 check_agent() { python3 -m py_compile manifests/agent/agent.py && echo "agent.py compiles"; }
 
+check_mcp() {
+  python3 - <<'PY' || return 1
+import importlib.util, json, py_compile, re, sys
+for f in ("manifests/mcp/server.py", "manifests/records/records_api.py"):
+    py_compile.compile(f, doraise=True)
+spec = importlib.util.spec_from_file_location("server", "manifests/mcp/server.py")
+srv = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(srv)
+with open("manifests/mcp/policy.json") as f:
+    policy = json.load(f)
+bad = []
+for who, grant in sorted(policy["identities"].items()):
+    for t in grant["tools"]:
+        if t not in srv.TOOLS:
+            bad.append("%s is granted %s, a tool the server does not have" % (who, t))
+        elif srv.TOOLS[t]["definition"]["annotations"].get("destructiveHint", True):
+            bad.append("%s is granted %s, a destructive tool" % (who, t))
+    for r in grant["resources"]:
+        if r not in srv.RESOURCES:
+            bad.append("%s is granted %s, a resource the server does not have" % (who, r))
+aud = policy["audience"]
+if "audience == '%s'" % aud not in open("manifests/admission.yaml").read():
+    bad.append("manifests/admission.yaml requires a different audience than the MCP server checks (%s)" % aud)
+job_auds = re.findall(r"audience:\s*(\S+)", open("manifests/agent/job.yaml").read())
+if not job_auds or any(a != aud for a in job_auds):
+    bad.append("an agent Job's token is not for the MCP server's audience (%s): %s" % (aud, job_auds))
+print("\n".join(bad) or "every grant names a tool or resource the server has; none is destructive; one audience")
+sys.exit(1 if bad else 0)
+PY
+  python3 tests/mcp/test_server.py 2>&1 | tail -3
+  return "${PIPESTATUS[0]}"
+}
+
 checks=("$@")
-[ ${#checks[@]} -eq 0 ] && checks=(kubeconform images agent)
+[ ${#checks[@]} -eq 0 ] && checks=(kubeconform images agent mcp)
 failed=0
 for c in "${checks[@]}"; do
   if "check_$c"; then echo "-- $c: ok"; else echo "-- $c: FAILED"; failed=1; fi

@@ -1,6 +1,8 @@
-# Keeps the pinned GitHub Actions current. Images, gVisor and CLI tools are
-# pinned by digest or hash in files Dependabot does not read; they are moved
-# by hand, with the new hash checked against the publisher's.
+# Keeps the pinned GitHub Actions current. Images, gVisor, CLI tools and the
+# MCP SDK the protocol test drives (tests/mcp/requirements.txt, compiled with
+# uv from requirements.in) are pinned by digest or hash in files Dependabot
+# does not read; they are moved by hand, with the new hash checked against
+# the publisher's.
 #
 # Grouped: one pull request per week is a queue that gets read.
 version: 2

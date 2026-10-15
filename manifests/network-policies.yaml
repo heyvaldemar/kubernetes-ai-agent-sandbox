@@ -1,7 +1,12 @@
 # Two walls. The first is the sandbox's own: nothing leaves an agent pod but
-# DNS and the one tool it is given. The second belongs to everyone else:
-# corp refuses connections from any sandbox namespace, so opening the first
-# wall by mistake does not open the second.
+# DNS and the MCP server, its one door to its tools. The second belongs to
+# everyone else: corp refuses connections from any sandbox namespace, so
+# opening the first wall by mistake does not open the second.
+#
+# The MCP server is walled the same way: it takes calls from sandboxes only,
+# and reaches the two services its tools call, DNS and the API server (for
+# TokenReview; that rule names the API server's address, so
+# scripts/install-sandbox.sh writes it at install).
 #
 # NetworkPolicy works on addresses and ports, not on names. An agent cannot
 # connect anywhere it is not allowed to, but it can still resolve names, and
@@ -38,7 +43,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-tool-gateway
+  name: allow-mcp-server
   namespace: agents
 spec:
   podSelector: {}
@@ -47,18 +52,19 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: tools
+              kubernetes.io/metadata.name: mcp
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: tool-gateway
+              app.kubernetes.io/name: mcp-server
       ports:
-        - {protocol: TCP, port: 9898}
+        - {protocol: TCP, port: 8080}
 ---
-# The tool takes calls from sandboxes and nothing else.
+# The report tool's upstream takes calls from the MCP server and nothing else:
+# an agent reaches it only through a tool it is granted.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: tool-gateway-from-sandboxes
+  name: tool-gateway-from-mcp
   namespace: tools
 spec:
   podSelector:
@@ -69,9 +75,68 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              sandbox.heyvaldemar.com/agents: "true"
+              kubernetes.io/metadata.name: mcp
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mcp-server
       ports:
         - {protocol: TCP, port: 9898}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: mcp
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-server
+  namespace: mcp
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-server
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              sandbox.heyvaldemar.com/agents: "true"
+      ports:
+        - {protocol: TCP, port: 8080}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tools
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tool-gateway
+      ports:
+        - {protocol: TCP, port: 9898}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: corp
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: records-api
+      ports:
+        - {protocol: TCP, port: 8080}
 ---
 # The second wall: every namespace may reach corp except a sandbox.
 apiVersion: networking.k8s.io/v1

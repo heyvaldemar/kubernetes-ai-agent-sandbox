@@ -1,9 +1,15 @@
-# The demo agent as a one-off Job in the sandbox. Every line of the pod spec
+# The demo agents as one-off Jobs in the sandbox. Every line of the pod spec
 # below is one the admission policy requires; leave one out and the API
-# server refuses the Job. Run it, then read its report:
+# server refuses the Job. Run them, then read their reports:
 #
 #   kubectl apply -f manifests/agent/job.yaml
 #   kubectl -n agents logs -f job/agent-demo
+#   kubectl -n agents logs -f job/records-clerk
+#
+# Each carries one credential: a token for its ServiceAccount, bound to the
+# MCP server's audience and to this pod, valid for ten minutes. The API server
+# does not accept it, and it is all the MCP server needs to know who is
+# calling.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -18,6 +24,7 @@ spec:
         app.kubernetes.io/name: agent-demo
     spec:
       runtimeClassName: gvisor
+      serviceAccountName: researcher
       automountServiceAccountToken: false
       restartPolicy: Never
       securityContext:
@@ -32,7 +39,8 @@ spec:
           command: [python3, /agent/agent.py]
           env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
-            - {name: TOOL_URL, value: "http://tool-gateway.tools.svc.cluster.local:9898/"}
+            - {name: AGENT_ROLE, value: researcher}
+            - {name: MCP_URL, value: "http://mcp-server.mcp.svc.cluster.local:8080/mcp"}
           resources:
             requests: {cpu: 50m, memory: 64Mi}
             limits: {cpu: 500m, memory: 128Mi}
@@ -43,7 +51,69 @@ spec:
               drop: [ALL]
           volumeMounts:
             - {name: agent, mountPath: /agent, readOnly: true}
+            - {name: mcp-token, mountPath: /var/run/secrets/mcp, readOnly: true}
       volumes:
         - name: agent
           configMap:
             name: agent-script
+        - name: mcp-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: mcp.sandbox.heyvaldemar.com
+                  expirationSeconds: 600
+                  path: token
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: records-clerk
+  namespace: agents
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: records-clerk
+    spec:
+      runtimeClassName: gvisor
+      serviceAccountName: records-clerk
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+          command: [python3, /agent/agent.py]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: AGENT_ROLE, value: records-clerk}
+            - {name: MCP_URL, value: "http://mcp-server.mcp.svc.cluster.local:8080/mcp"}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: agent, mountPath: /agent, readOnly: true}
+            - {name: mcp-token, mountPath: /var/run/secrets/mcp, readOnly: true}
+      volumes:
+        - name: agent
+          configMap:
+            name: agent-script
+        - name: mcp-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: mcp.sandbox.heyvaldemar.com
+                  expirationSeconds: 600
+                  path: token

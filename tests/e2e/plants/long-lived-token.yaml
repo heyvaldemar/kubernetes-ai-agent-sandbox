@@ -1,0 +1,40 @@
+# expect: a token in an agent pod is for the MCP server only
+# The right audience, for a day: a token a fooled agent sends somewhere
+# stays useful long after the task.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: long-lived-token
+  namespace: agents
+spec:
+  runtimeClassName: gvisor
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: agent
+      image: docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      command: [sleep, "60"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {cpu: 100m, memory: 32Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      volumeMounts:
+        - {name: token, mountPath: /var/run/secrets/mcp, readOnly: true}
+  volumes:
+    - name: token
+      projected:
+        sources:
+          - serviceAccountToken:
+              audience: mcp.sandbox.heyvaldemar.com
+              expirationSeconds: 86400
+              path: token

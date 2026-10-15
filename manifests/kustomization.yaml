@@ -7,8 +7,10 @@ resources:
   - runtimeclass.yaml
   - namespaces.yaml
   - admission.yaml
+  - mcp/mcp.yaml
   - tools.yaml
   - corp.yaml
+  - records/records.yaml
   - network-policies.yaml
   - quota.yaml
 configMapGenerator:
@@ -16,5 +18,14 @@ configMapGenerator:
     namespace: agents
     files:
       - agent/agent.py
+  - name: mcp-server
+    namespace: mcp
+    files:
+      - mcp/server.py
+      - mcp/policy.json
+  - name: records-api
+    namespace: corp
+    files:
+      - records/records_api.py
 generatorOptions:
   disableNameSuffixHash: true

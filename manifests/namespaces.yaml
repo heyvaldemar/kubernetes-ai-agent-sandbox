@@ -1,6 +1,8 @@
 # agents: where agent workloads run. The sandbox label is what the admission
 # policy binds to and what the other namespaces' network policies refuse.
-# tools: the services an agent is allowed to call.
+# mcp: the MCP server, the agents' only door to their tools. Its label binds
+# the tool-server policy: gVisor too, since it parses what agents send.
+# tools: the services the MCP server's tools call.
 # corp: stands for everything else in the cluster an agent must not reach.
 apiVersion: v1
 kind: Namespace
@@ -8,6 +10,15 @@ metadata:
   name: agents
   labels:
     sandbox.heyvaldemar.com/agents: "true"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp
+  labels:
+    sandbox.heyvaldemar.com/tool-servers: "true"
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/enforce-version: latest
 ---
@@ -26,3 +37,20 @@ metadata:
   labels:
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/enforce-version: latest
+---
+# Who an agent is, to the MCP server. An agent pod carries a token for one of
+# these, bound to the MCP server's audience; policy.json says what each may
+# use. Neither gets a token for the Kubernetes API.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: researcher
+  namespace: agents
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: records-clerk
+  namespace: agents
+automountServiceAccountToken: false
