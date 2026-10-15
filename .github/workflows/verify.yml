@@ -58,3 +58,24 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/mcp-sdk"
           "$RUNNER_TEMP/mcp-sdk/bin/pip" install --quiet --require-hashes --no-deps -r tests/mcp/requirements.txt
           "$RUNNER_TEMP/mcp-sdk/bin/python" tests/mcp/sdk_client.py
+
+  freshness:
+    name: Pins that fell behind upstream
+    # Scheduled and manual only: a new upstream release is not actionable in
+    # an unrelated pull request. A failure lands as a workflow-failure
+    # notification, which fleet triage reads. Dependabot here watches the
+    # workflows' actions and nothing else; this watches the charts, images,
+    # tools and runtimes the platform pins (scripts/check-freshness.py).
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare every pin with what upstream has released
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check-freshness.py
