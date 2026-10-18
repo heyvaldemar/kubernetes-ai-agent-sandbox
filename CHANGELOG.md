@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - A weekly check of every pin against upstream: `scripts/check-freshness.py`, run by the verify workflow on its schedule and by hand. It compares the charts the scripts install with their repository's index, every image pinned by digest with what its tag resolves to now, the tools in `tools.lock` with their newest releases, gVisor with its newest release, and the CI images. Dependabot here watched the workflows' actions and nothing else, so a chart, an image or a tool could fall behind without a sound.
 
+### Changed
+
+- The threat model's swap finding now carries a tested mitigation for nodes that must keep swap: a systemd drop-in that sets `MemorySwapMax=0` on the pods' slice, proposed on gVisor issue 15756 and measured here on 17 October (the gVisor pod killed at its 128Mi limit instead of reaching 848 MiB in swap).
+
 ## [1.1.0] - 2026-10-14
 
 ### Added
