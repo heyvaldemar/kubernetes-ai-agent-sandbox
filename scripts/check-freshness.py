@@ -13,7 +13,8 @@ aws-eks-reference-platform has its own, which also renders its charts.
 
   charts     each `helm upgrade --install <release> <chart> --repo <url>
              --version "$VAR"` in scripts/*.sh, VAR set in the same file,
-             against the chart repository's index
+             and each line of a charts.lock (name version repository
+             sha256), against the chart repository's index
   images     every image pinned as name:tag@sha256 in the tracked files,
              inline or as registry/repository/tag in values, against what
              the tag resolves to now: a moved tag is a rebuilt image nobody
@@ -38,6 +39,8 @@ TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
 SKIP_FILES = {"tests/static/plants.tsv"}
 TOOL_RELEASES = {
     "kind": ("kubernetes-sigs/kind", r"(v\d+\.\d+\.\d+)"),
+    "oras": ("oras-project/oras", r"(v\d+\.\d+\.\d+)"),
+    "cosign": ("sigstore/cosign", r"(v\d+\.\d+\.\d+)"),
     "helm": ("helm/helm", r"(v\d+\.\d+\.\d+)"),
     "kubeconform": ("yannh/kubeconform", r"(v\d+\.\d+\.\d+)"),
 }
@@ -117,6 +120,25 @@ def check_charts():
                 indexes[repo] = get(repo.rstrip("/") + "/index.yaml").decode("utf-8", "replace")
             latest = newest(index_versions(indexes[repo], chart))
             what = "chart %s" % chart
+            if latest is None:
+                behind(what, "%s lists no release of it; the pin %s is unchanged" % (repo, pinned))
+            elif semver(latest) > semver(pinned):
+                behind(what, "pinned %s, latest is %s" % (pinned, latest))
+            else:
+                ok(what, pinned)
+
+
+def check_charts_lock():
+    indexes = {}
+    for path in sorted(p for p in tracked() if p.endswith("charts.lock")):
+        for line in open(os.path.join(ROOT, path), encoding="utf-8"):
+            if not line.strip() or line.startswith("#"):
+                continue
+            chart, pinned, repo = line.split()[:3]
+            if repo not in indexes:
+                indexes[repo] = get(repo.rstrip("/") + "/index.yaml").decode("utf-8", "replace")
+            latest = newest(index_versions(indexes[repo], chart))
+            what = "chart %s (%s)" % (chart, path)
             if latest is None:
                 behind(what, "%s lists no release of it; the pin %s is unchanged" % (repo, pinned))
             elif semver(latest) > semver(pinned):
@@ -226,7 +248,7 @@ def check_gvisor():
 
 
 def main():
-    for check in (check_charts, check_images, check_tools, check_ci_images, check_gvisor):
+    for check in (check_charts, check_charts_lock, check_images, check_tools, check_ci_images, check_gvisor):
         try:
             check()
         except Exception as e:  # one unreachable upstream must not hide the others
