@@ -52,7 +52,7 @@ The LimitedSwap variant of this, where a pod is meant to get a swap budget and a
 
 Production Kubernetes nodes usually run without swap. Machines people test on often have it: the GitHub-hosted runner this repository's CI uses had a 3 GiB swap file ([the e2e log](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/runs/38346033604) prints it before turning it off). CI turns swap off before it creates the cluster, and the e2e run fails if the node has any; with swap off, the same gVisor pod is killed at 112 MiB. A cluster that enables swap on its nodes for other reasons needs it accounted for before agent workloads run there.
 
-A node can also hold the line itself. On 17 October a gVisor contributor traced the cause to the systemd cgroup driver and proposed a systemd drop-in that sets `MemorySwapMax=0` on the slice all pods live under; this repository tested it on the same kind node the same day. kind runs the kubelet with `cgroupRoot: /kubelet`, so its slice is `kubelet-kubepods.slice` (on a node with the default root it is `kubepods.slice`):
+A node can also hold the line itself. On 17 October a user on the issue traced the cause under the systemd cgroup driver and proposed a systemd drop-in that sets `MemorySwapMax=0` on the slice all pods live under; this repository tested it on the same kind node the same day. kind runs the kubelet with `cgroupRoot: /kubelet`, so its slice is `kubelet-kubepods.slice` (on a node with the default root it is `kubepods.slice`):
 
 ```sh
 mkdir -p /etc/systemd/system/kubelet-kubepods.slice.d
@@ -60,7 +60,7 @@ printf '[Slice]\nMemorySwapMax=0\n' > /etc/systemd/system/kubelet-kubepods.slice
 systemctl daemon-reload
 ```
 
-With it, the same gVisor pod was killed at its limit, at 128 MiB, instead of reaching 848 MiB in swap. It takes swap from every pod on the node, which is what NoSwap promises anyway; on a node set to LimitedSwap it would also take the budget those pods are allowed, so that case still needs the fix in runsc. The e2e run keeps refusing a node with swap: the drop-in is a mitigation for nodes that must keep swap, not a reason to stop checking.
+With it, the same gVisor pod was killed at its limit, at 128 MiB, instead of reaching 848 MiB in swap. The next day another user showed the same gap on a node in the cgroupfs layout, where runsc runs without `systemd-cgroup`: the pod's cgroup there reads `memory.swap.max=max` too, so the cause is not the driver. The cgroupfs counterpart of the drop-in is `echo 0 > /sys/fs/cgroup/kubelet/kubepods/memory.swap.max`, which does not survive a restart. It takes swap from every pod on the node, which is what NoSwap promises anyway; on a node set to LimitedSwap it would also take the budget those pods are allowed, so that case still needs the fix in runsc. The e2e run keeps refusing a node with swap: the drop-in is a mitigation for nodes that must keep swap, not a reason to stop checking.
 
 ## Residual risks
 

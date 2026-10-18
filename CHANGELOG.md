@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
-- The threat model's swap finding now carries a tested mitigation for nodes that must keep swap: a systemd drop-in that sets `MemorySwapMax=0` on the pods' slice, proposed on gVisor issue 15756 and measured here on 17 October (the gVisor pod killed at its 128Mi limit instead of reaching 848 MiB in swap).
+- The threat model's swap finding now carries a tested mitigation for nodes that must keep swap: a systemd drop-in that sets `MemorySwapMax=0` on the pods' slice, proposed on gVisor issue 15756 and measured here on 17 October (the gVisor pod killed at its 128Mi limit instead of reaching 848 MiB in swap), and the cgroupfs counterpart reported there a day later.
 
 ## [1.1.0] - 2026-10-14
 
