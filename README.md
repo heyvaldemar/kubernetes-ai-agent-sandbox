@@ -13,6 +13,10 @@ An AI agent will be talked into something by what it reads. This repository is t
 
 It is a reference, not a product, and it does not run in production anywhere. It runs on kind, CPU only, at no cloud cost.
 
+![The e2e run: gVisor and the sandbox installed, then every check, with the researcher agent following an injected instruction and being blocked](docs/demo/e2e.gif)
+
+[Run 39234194257](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/runs/39234194257) on main, replayed from its log by `scripts/cast-from-log.py`: the e2e refuses a node with swap, and Docker Desktop has swap, so it is recorded where it runs. The times are the log's own, waits cut to two seconds and played at half speed; GitHub's step headers and the summary `run.sh` repeats at its end are left out, and nothing is reworded. [`docs/demo/e2e.cast`](docs/demo/e2e.cast) replays it in a terminal (`asciinema play`).
+
 ## What is proven, and how
 
 Every line is a check in `tests/e2e/run.sh` on a fresh cluster, or in `scripts/validate.sh`. Each refusal is paired with a control that must succeed, so a check cannot pass because the environment refuses everything.
