@@ -162,7 +162,7 @@ Open an [issue](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/issue
 
 ## How this is built
 
-One maintainer and an AI agent. The agent writes most of the code; the decisions are mine, and so is the verification. Nothing merges on the agent's report that it works: it merges on the checks above, and each of them has been shown the failure it exists to catch. The swap finding in the threat model came from a check that failed during the build.
+One maintainer and an AI agent. The agent writes most of the code; the decisions are mine, and so is the verification. Nothing merges on the agent's report that it works: it merges on the checks above, and each of them has been shown the failure it exists to catch. The rules the agent works under are in [AGENTS.md](AGENTS.md). The swap finding in the threat model came from a check that failed during the build.
 
 ## License
 
