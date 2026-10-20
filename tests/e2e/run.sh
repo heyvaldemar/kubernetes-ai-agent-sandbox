@@ -317,6 +317,22 @@ if [ -n "$closed" ]; then
 else
   fail "with the policy that opened egress deleted, a new sandbox pod still reached the internet a minute later: $again"
 fi
+# The same for DNS over UDP, which the network plugin judges on its own path:
+# a new sandbox pod must not get an answer from the cluster's CoreDNS.
+kube_dns="$(kubectl -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}')"
+dns_closed=""
+for i in $(seq 1 12); do
+  kubectl -n agents delete pod e2e-redns --ignore-not-found --wait=true >/dev/null 2>&1
+  sandbox_pod e2e-redns "$BUSYBOX" 32Mi nslookup -timeout=3 example.com "$kube_dns"
+  finished agents e2e-redns >/dev/null
+  if ! kubectl -n agents logs e2e-redns 2>/dev/null | sed -n '/^Name:/,$p' | grep -qE '^Address:? [0-9]'; then dns_closed="$i"; break; fi
+  sleep 5
+done
+if [ -n "$dns_closed" ]; then
+  pass "with the mistake undone, the cluster's CoreDNS answers a new sandbox pod no more (attempt $dns_closed)"
+else
+  fail "with the policy that opened egress deleted, a new sandbox pod still got answers from the cluster's CoreDNS a minute later"
+fi
 
 # --- 8 -----------------------------------------------------------------------
 step "8. limits"
