@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Security
 
 - **DNS no longer leaves the sandbox.** The agents asked the cluster's CoreDNS, which forwards to the internet, so a fooled agent could carry data out in the names it looked up; the threat model listed it as a residual risk. The agents now ask a resolver of their own, CoreDNS with no `forward` block, answering for `cluster.local` only (`manifests/agent-dns.yaml`), and their network policy refuses the cluster's CoreDNS. New e2e step 6: a sandbox pod resolves the MCP server's name and no outside name, cannot ask the cluster's CoreDNS, and outside the sandbox the same name resolves. Run against the sandbox before the change, the step failed on both sandbox lookups (run 39441398734; ADR 3, revisited).
+- **A new pod's first instant was not policed.** kind's network plugin judges a pod's packets only once the pod's address is in its rules, a moment after the pod starts: a new sandbox pod's first query to the cluster's CoreDNS got an answer its policy refuses (run 39445988635). The agents' Jobs now start behind a gate, an init container that waits until the agents' resolver answers and the cluster's CoreDNS does not. The e2e measures the first instant on every run, and step 7 now also requires the first wall to close again once the policy that opened it is deleted.
 
 ### Added
 

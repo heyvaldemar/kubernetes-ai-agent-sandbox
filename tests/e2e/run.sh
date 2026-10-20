@@ -37,11 +37,13 @@ BUSYBOX=docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b459782
 CURL=docker.io/curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
 PYTHON=docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
 results=()
+measured=()
 failed=0
 
 pass() { results+=("PASS  $1"); printf '  ok    %s\n' "$1"; }
 fail() { results+=("FAIL  $1"); printf '  FAIL  %s\n' "$1"; failed=1; }
 step() { printf '\n== %s\n' "$*"; }
+measure() { measured+=("$1"); printf '  ..    %s\n' "$1"; }
 
 # shellcheck disable=SC2329  # called by the EXIT trap
 cleanup() {
@@ -55,19 +57,27 @@ trap cleanup EXIT
 # $3 memory limit, then the command.
 # A sandbox pod asks the agents' resolver, like the agents' Jobs; with
 # SANDBOX_DNS=cluster it keeps the cluster's CoreDNS, which the network
-# policy refuses it unless egress has been opened.
+# policy refuses it unless egress has been opened. With SANDBOX_GATE=1 it
+# also waits at the agents' gate (agent/job.yaml) before its command runs.
 sandbox_pod() {
   local name="$1" image="$2" memory="$3"; shift 3
-  python3 - "$name" "$image" "$memory" "${SANDBOX_DNS:-agents}" "$@" <<'PY' | kubectl apply -f - >/dev/null
-import json, sys
-name, image, memory, dns, *cmd = sys.argv[1:]
+  python3 - "$name" "$image" "$memory" "${SANDBOX_DNS:-agents}" "${SANDBOX_GATE:-0}" "$ROOT/manifests/agent/job.yaml" "$@" <<'PY' | kubectl apply -f - >/dev/null
+import json, re, sys
+name, image, memory, dns, gate, job, *cmd = sys.argv[1:]
+# The gate is read from the agents' Job, so the e2e waits exactly as they do.
+gate_cmd = re.search(r"name: wait-for-the-wall\n(?:.*\n)*?\s+- (for i in .*)\n", open(job).read()).group(1)
 agents_dns = {"dnsPolicy": "None", "dnsConfig": {
     "nameservers": ["10.96.0.53"], "searches": ["agents.svc.cluster.local", "svc.cluster.local", "cluster.local"],
     "options": [{"name": "ndots", "value": "5"}]}} if dns == "agents" else {}
 print(json.dumps({
   "apiVersion": "v1", "kind": "Pod",
   "metadata": {"name": name, "namespace": "agents"},
-  "spec": dict(agents_dns, **{
+  "spec": dict(agents_dns, **({"initContainers": [{
+      "name": "wait-for-the-wall", "image": "docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+      "command": ["sh", "-c", gate_cmd],
+      "resources": {"requests": {"cpu": "10m", "memory": "16Mi"}, "limits": {"cpu": "100m", "memory": "32Mi"}},
+      "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}}]}
+      if gate == "1" else {}), **{
     "runtimeClassName": "gvisor", "automountServiceAccountToken": False, "restartPolicy": "Never",
     "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "runAsGroup": 10001,
                         "seccompProfile": {"type": "RuntimeDefault"}},
@@ -249,7 +259,7 @@ step "6. names: the cluster's, and nothing else"
 # lookups from one sandbox pod, then the same outside name from outside.
 kube_dns="$(kubectl -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}')"
 # shellcheck disable=SC2016
-sandbox_pod e2e-names "$BUSYBOX" 32Mi sh -c 'for q in "$@"; do echo "== $q"; nslookup -timeout=3 $q 2>&1; done' sh \
+SANDBOX_GATE=1 sandbox_pod e2e-names "$BUSYBOX" 32Mi sh -c 'for q in "$@"; do echo "== $q"; nslookup -timeout=3 $q 2>&1; done' sh \
   mcp-server.mcp.svc.cluster.local example.com "example.com $kube_dns"
 finished agents e2e-names >/dev/null
 names="$(kubectl -n agents logs e2e-names 2>/dev/null)"
@@ -266,6 +276,16 @@ if answered "example.com $kube_dns"; then
   fail "a sandbox pod asked the cluster's CoreDNS ($kube_dns) for example.com and got an answer"
 else
   pass "a sandbox pod cannot ask the cluster's CoreDNS ($kube_dns), which forwards"
+fi
+# Measured, not gated: the same question at a new pod's first instant, with no
+# gate. kind's network plugin judges a pod only once it has learned its
+# address, so this one may be answered; the agents wait at the gate for that.
+sandbox_pod e2e-first-query "$BUSYBOX" 32Mi nslookup -timeout=3 example.com "$kube_dns"
+finished agents e2e-first-query >/dev/null
+if kubectl -n agents logs e2e-first-query 2>/dev/null | sed -n '/^Name:/,$p' | grep -qE '^Address:? [0-9]'; then
+  measure "a new sandbox pod's first query, before the network plugin knows the pod: answered by the cluster's CoreDNS (the gate is why the agents do not start until it stops)"
+else
+  measure "a new sandbox pod's first query, before the network plugin knows the pod: not answered this run"
 fi
 kubectl -n e2e-control run e2e-control-names --image="$BUSYBOX" --restart=Never --command -- nslookup -timeout=3 example.com >/dev/null 2>&1
 [ "$(finished e2e-control e2e-control-names)" = Succeeded ] || true
@@ -304,34 +324,18 @@ fi
 # since the network plugin applies a deleted policy on its own schedule; how
 # long it took is printed, and a minute without closing is a failure.
 closed=""
-for i in $(seq 1 12); do
+for i in $(seq 1 6); do
   kubectl -n agents delete pod e2e-reclosed --ignore-not-found --wait=true >/dev/null 2>&1
-  SANDBOX_DNS=cluster sandbox_pod e2e-reclosed "$CURL" 64Mi sh -c "$probe_script" sh "$OUTSIDE" "http://1.1.1.1/"
-  finished agents e2e-reclosed >/dev/null
+  SANDBOX_DNS=cluster SANDBOX_GATE=1 sandbox_pod e2e-reclosed "$CURL" 64Mi sh -c "$probe_script" sh "$OUTSIDE" "http://1.1.1.1/"
+  phase="$(finished agents e2e-reclosed)"
   again="$(kubectl -n agents logs e2e-reclosed 2>/dev/null)"
-  if grep -q "^$OUTSIDE 000" <<<"$again" && grep -q "^http://1.1.1.1/ 000" <<<"$again"; then closed="$i"; break; fi
+  if [ "$phase" = Succeeded ] && grep -q "^$OUTSIDE 000" <<<"$again" && grep -q "^http://1.1.1.1/ 000" <<<"$again"; then closed="$i"; break; fi
   sleep 5
 done
 if [ -n "$closed" ]; then
-  pass "with the mistake undone, the first wall holds again for a new sandbox pod (attempt $closed)"
+  pass "with the mistake undone, a new sandbox pod passes the gate and reaches nothing outside (attempt $closed)"
 else
-  fail "with the policy that opened egress deleted, a new sandbox pod still reached the internet a minute later: $again"
-fi
-# The same for DNS over UDP, which the network plugin judges on its own path:
-# a new sandbox pod must not get an answer from the cluster's CoreDNS.
-kube_dns="$(kubectl -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}')"
-dns_closed=""
-for i in $(seq 1 12); do
-  kubectl -n agents delete pod e2e-redns --ignore-not-found --wait=true >/dev/null 2>&1
-  sandbox_pod e2e-redns "$BUSYBOX" 32Mi nslookup -timeout=3 example.com "$kube_dns"
-  finished agents e2e-redns >/dev/null
-  if ! kubectl -n agents logs e2e-redns 2>/dev/null | sed -n '/^Name:/,$p' | grep -qE '^Address:? [0-9]'; then dns_closed="$i"; break; fi
-  sleep 5
-done
-if [ -n "$dns_closed" ]; then
-  pass "with the mistake undone, the cluster's CoreDNS answers a new sandbox pod no more (attempt $dns_closed)"
-else
-  fail "with the policy that opened egress deleted, a new sandbox pod still got answers from the cluster's CoreDNS a minute later"
+  fail "with the policy that opened egress deleted, a new sandbox pod did not get walled in again: ${phase:-no pod}, ${again:-no output}"
 fi
 
 # --- 8 -----------------------------------------------------------------------
@@ -368,7 +372,7 @@ grep -q "exceeded quota" <<<"$quota" && pass "a pod asking for 3Gi is refused by
 
 # A copy the status workflow reads (scripts/status.py), when one is asked for.
 if [ -n "${E2E_RESULTS:-}" ]; then
-  { printf 'R\t%s\n' "${results[@]}"; } | python3 -c '
+  { printf 'R\t%s\n' "${results[@]}"; [ "${#measured[@]}" -gt 0 ] && printf 'M\t%s\n' "${measured[@]}"; } | python3 -c '
 import json, sys
 checks, measured = [], []
 for line in sys.stdin:

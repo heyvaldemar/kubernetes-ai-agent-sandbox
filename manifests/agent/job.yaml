@@ -6,6 +6,15 @@
 #   kubectl -n agents logs -f job/agent-demo
 #   kubectl -n agents logs -f job/records-clerk
 #
+# The gate: kind's network plugin learns a new pod's address a moment after
+# the pod starts, and until then the pod's packets are not judged by any
+# policy (run 39445988635: a new sandbox pod's first query got an answer from
+# the cluster's CoreDNS, which its policy refuses). So the agent starts only
+# once its own pod is walled in: the agents' resolver (10.96.0.53) must
+# answer a cluster name, so the network is up, and the cluster's CoreDNS
+# (kind's default address, 10.96.0.10) must not answer, so the policy has
+# taken hold. A minute at most; a pod that never gets there fails.
+#
 # Each carries one credential: a token for its ServiceAccount, bound to the
 # MCP server's audience and to this pod, valid for ten minutes. The API server
 # does not accept it, and it is all the MCP server needs to know who is
@@ -40,6 +49,21 @@ spec:
         runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: wait-for-the-wall
+          image: docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command:
+            - sh
+            - -c
+            - for i in $(seq 1 60); do if nslookup -timeout=1 kubernetes.default.svc.cluster.local 10.96.0.53 >/dev/null 2>&1 && ! nslookup -timeout=1 example.com 10.96.0.10 >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "the network policy never took hold"; exit 1
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 32Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
       containers:
         - name: agent
           image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
@@ -101,6 +125,21 @@ spec:
         runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: wait-for-the-wall
+          image: docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command:
+            - sh
+            - -c
+            - for i in $(seq 1 60); do if nslookup -timeout=1 kubernetes.default.svc.cluster.local 10.96.0.53 >/dev/null 2>&1 && ! nslookup -timeout=1 example.com 10.96.0.10 >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "the network policy never took hold"; exit 1
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 32Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
       containers:
         - name: agent
           image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a

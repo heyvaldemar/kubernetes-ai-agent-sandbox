@@ -65,6 +65,7 @@ With it, the same gVisor pod was killed at its limit, at 128 MiB, instead of rea
 
 ## Residual risks
 
+- **A new pod's first instant is not policed on kind.** kind's network plugin judges a pod's packets only once it has learned the pod's address, a moment after the pod starts; Kubernetes asks that filtering hold from a pod's very first instant. The e2e measures it every run (a new pod's first query to the cluster's CoreDNS was answered in run 39445988635). The agents' Jobs wait at a gate, an init container that lets the agent start only once the pod's own policy refuses the cluster's CoreDNS; a workload that skips the gate gets that moment. On another network plugin, measure it before relying on it.
 - **A name inside the cluster can still carry a few bytes.** The agents' resolver answers only for `cluster.local`, so nothing it hears leaves the cluster; a workload that read its query log could still be told something. Its log records errors only, and nothing else reads its queries.
 - **The tools are trusted.** The MCP server decides who may call a tool, not what a granted tool does. `quarterly_report` fetches one fixed address; a tool that fetched whatever URL it was given would be an exit, granted or not.
 - **An instruction in plain words passes the MCP server.** It caps a result's size and strips control characters. It cannot tell an instruction from data, and the report tool hands the agent its injection every run. The sandbox is what decides what acting on it can reach.
