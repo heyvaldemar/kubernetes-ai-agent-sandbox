@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- gVisor 20261005 to 20261012, the bundle for each architecture checked against the SHA-512 published beside it before the pin moved. The weekly freshness check reported it behind.
 - The status workflow hands its push credential to git through git's environment, not its command line, which any process on the runner can read.
 - The threat model's swap finding now carries a tested mitigation for nodes that must keep swap: a systemd drop-in that sets `MemorySwapMax=0` on the pods' slice, proposed on gVisor issue 15756 and measured here on 17 October (the gVisor pod killed at its 128Mi limit instead of reaching 848 MiB in swap), and the cgroupfs counterpart reported there a day later.
 
