@@ -110,7 +110,7 @@ flowchart LR
 - **gVisor** (`manifests/runtimeclass.yaml`, `scripts/install-gvisor.sh`): the release is pinned with the SHA-512 of its bundle per architecture in `gvisor.lock`.
 - **The MCP server** (`manifests/mcp/`, [ADR 5](docs/decisions/0005-an-mcp-server-as-the-only-door.md)): MCP 2026-07-28 over Streamable HTTP, standard-library Python in a pinned image, on gVisor. Each agent proves who it is with a ServiceAccount token bound to the server's audience, checked by TokenReview. `policy.json` grants each identity its tools and resources. The server holds the records key, rate-limits calls, validates arguments and logs every decision with the caller's pod.
 - **Admission** (`manifests/admission.yaml`): ValidatingAdmissionPolicies, enforced by the API server itself. One is bound to every namespace labelled `sandbox.heyvaldemar.com/agents`: gVisor, no API token, no Secret, a token for the MCP server only and for an hour at most. The other holds tool servers to gVisor too. Pod Security `restricted` on every namespace underneath them.
-- **Network** (`manifests/network-policies.yaml`): default deny; DNS and the MCP server allowed; the services behind the tools take calls from the MCP server only; `corp` refuses sandbox namespaces on its own.
+- **Network** (`manifests/network-policies.yaml`, `manifests/agent-dns.yaml`): default deny; DNS to the agents' own resolver, which answers for the cluster's names only, and the MCP server allowed; the services behind the tools take calls from the MCP server only; `corp` refuses sandbox namespaces on its own.
 - **The records key** (`scripts/install-sandbox.sh`): generated at install, handed to kubectl on stdin, a Secret in `corp` and `mcp` and nowhere else.
 - **Quota** (`manifests/quota.yaml`): what all agents together may take, with gVisor's per-pod overhead counted.
 
@@ -134,7 +134,7 @@ Nothing in a cloud. The sandbox runs on kind, CPU only; the demo agents call no 
 
 ## What it does not do
 
-The [threat model](docs/threat-model.md) lists every threat with its control and check, and what is not covered. DNS stays open and can carry data. The MCP server decides who may call a tool, not what a granted tool does, and an instruction in plain words passes it. It accepts in-cluster tokens only, not the specification's OAuth flow. NetworkPolicy allows addresses, not names. The audit trail stays on the node, and nothing watches system calls. On EKS, agent workloads would run on their own tainted node group, on nodes without swap.
+The [threat model](docs/threat-model.md) lists every threat with its control and check, and what is not covered. DNS is closed to the outside: the agents' resolver answers only for the cluster's names and relays nothing, since 2026-10-20. The MCP server decides who may call a tool, not what a granted tool does, and an instruction in plain words passes it. It accepts in-cluster tokens only, not the specification's OAuth flow. NetworkPolicy allows addresses, not names. The audit trail stays on the node, and nothing watches system calls. On EKS, agent workloads would run on their own tainted node group, on nodes without swap.
 
 ## Repository
 

@@ -6,6 +6,7 @@ kind: Kustomization
 resources:
   - runtimeclass.yaml
   - namespaces.yaml
+  - agent-dns.yaml
   - admission.yaml
   - mcp/mcp.yaml
   - tools.yaml

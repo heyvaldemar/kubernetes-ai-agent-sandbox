@@ -37,17 +37,22 @@ ep_port="$(kubectl -n default get endpointslices -l kubernetes.io/service-name=k
 python3 - "$svc_ip" "$svc_port" "$ep_ip" "$ep_port" <<'PY' | kubectl apply -f - >/dev/null
 import json, sys
 svc_ip, svc_port, ep_ip, ep_port = sys.argv[1:]
-print(json.dumps({
-    "apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
-    "metadata": {"name": "mcp-server-to-api-server", "namespace": "mcp"},
-    "spec": {"podSelector": {"matchLabels": {"app.kubernetes.io/name": "mcp-server"}},
-             "policyTypes": ["Egress"],
-             "egress": [{"to": [{"ipBlock": {"cidr": svc_ip + "/32"}}], "ports": [{"protocol": "TCP", "port": int(svc_port)}]},
-                        {"to": [{"ipBlock": {"cidr": ep_ip + "/32"}}], "ports": [{"protocol": "TCP", "port": int(ep_port)}]}]}}))
+egress = [{"to": [{"ipBlock": {"cidr": svc_ip + "/32"}}], "ports": [{"protocol": "TCP", "port": int(svc_port)}]},
+          {"to": [{"ipBlock": {"cidr": ep_ip + "/32"}}], "ports": [{"protocol": "TCP", "port": int(ep_port)}]}]
+print(json.dumps({"apiVersion": "v1", "kind": "List", "items": [
+    {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+     "metadata": {"name": "mcp-server-to-api-server", "namespace": "mcp"},
+     "spec": {"podSelector": {"matchLabels": {"app.kubernetes.io/name": "mcp-server"}},
+              "policyTypes": ["Egress"], "egress": egress}},
+    # The agents' resolver watches Services and EndpointSlices, and goes
+    # nowhere else.
+    {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+     "metadata": {"name": "agent-dns-to-api-server", "namespace": "agent-dns"},
+     "spec": {"podSelector": {}, "policyTypes": ["Egress"], "egress": egress}}]}))
 PY
-echo "the MCP server may reach the API server at $svc_ip:$svc_port and $ep_ip:$ep_port, for TokenReview"
+echo "the MCP server and the agents' resolver may reach the API server at $svc_ip:$svc_port and $ep_ip:$ep_port"
 
-for d in tools/tool-gateway corp/internal-records corp/records-api mcp/mcp-server; do
+for d in tools/tool-gateway corp/internal-records corp/records-api mcp/mcp-server agent-dns/agent-dns; do
   kubectl -n "${d%/*}" rollout status "deployment/${d#*/}" --timeout=180s >/dev/null
   echo "ready: $d"
 done

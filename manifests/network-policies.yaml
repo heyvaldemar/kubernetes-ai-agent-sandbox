@@ -8,9 +8,11 @@
 # TokenReview; that rule names the API server's address, so
 # scripts/install-sandbox.sh writes it at install).
 #
-# NetworkPolicy works on addresses and ports, not on names. An agent cannot
-# connect anywhere it is not allowed to, but it can still resolve names, and
-# DNS itself can carry data out; docs/threat-model.md says so.
+# NetworkPolicy works on addresses and ports, not on names, and DNS itself can
+# carry data out: a lookup relayed to the internet is a message. So the
+# agents' DNS goes to a resolver of their own (agent-dns.yaml), which answers
+# for the cluster's names and relays nothing, and never to the cluster's
+# CoreDNS, which forwards.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -32,13 +34,13 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kube-system
+              kubernetes.io/metadata.name: agent-dns
           podSelector:
             matchLabels:
-              k8s-app: kube-dns
+              app.kubernetes.io/name: agent-dns
       ports:
-        - {protocol: UDP, port: 53}
-        - {protocol: TCP, port: 53}
+        - {protocol: UDP, port: 1053}
+        - {protocol: TCP, port: 1053}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -152,3 +154,22 @@ spec:
         - namespaceSelector:
             matchExpressions:
               - {key: sandbox.heyvaldemar.com/agents, operator: DoesNotExist}
+---
+# The agents' resolver takes queries from agent namespaces only, and its one
+# way out, to the API server, is written by scripts/install-sandbox.sh.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: from-agents-only
+  namespace: agent-dns
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              sandbox.heyvaldemar.com/agents: "true"
+      ports:
+        - {protocol: UDP, port: 1053}
+        - {protocol: TCP, port: 1053}

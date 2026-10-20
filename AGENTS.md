@@ -62,7 +62,7 @@ Plain and specific. No em dashes, no marketing words, no claim the evidence does
 - Touch anything outside this repository's own CI to test a change: no cloud resources, no outside services.
 - Put a model or a model API key into CI. The demo agent is a script that is fooled the same way every run (ADR 4).
 - Let an agent pod or a tool server run without gVisor, or loosen what `manifests/admission.yaml` holds them to, the namespace labels it binds to, or Pod Security `restricted`.
-- Open the agents' egress past DNS and the MCP server (`manifests/network-policies.yaml`), or let `corp` take calls from a sandbox namespace. A new tool is a tool in `manifests/mcp/server.py`, a grant in `manifests/mcp/policy.json` and a rule from the MCP server to its upstream, reviewed together (ADR 5).
+- Open the agents' egress past their own resolver and the MCP server (`manifests/network-policies.yaml`), give that resolver a `forward` block (`manifests/agent-dns.yaml`), or let `corp` take calls from a sandbox namespace. A new tool is a tool in `manifests/mcp/server.py`, a grant in `manifests/mcp/policy.json` and a rule from the MCP server to its upstream, reviewed together (ADR 5).
 - Grant `delete_record` to anyone, or let an agent namespace hold the records key or any Secret. The key exists in `corp` and `mcp` only.
 - Let the MCP server take a token for another audience, or pass a caller's token on to an upstream.
 - Drop the e2e's refusal of a node with swap. The systemd drop-in in the threat model is a mitigation for nodes that must keep swap, not a reason to stop checking.

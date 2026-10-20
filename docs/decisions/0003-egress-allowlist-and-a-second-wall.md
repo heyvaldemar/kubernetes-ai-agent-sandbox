@@ -28,6 +28,10 @@ The `agents` namespace denies all ingress and egress by default (`network-polici
 
 The one destination is now the MCP server ([ADR 5](0005-an-mcp-server-as-the-only-door.md)), on TCP 8080 in `mcp`. The tool gateway takes calls only from the MCP server, and the records service behind the records tool sits in `corp`, behind the second wall. With the sandbox's egress opened on purpose, the e2e run shows `corp`, the records service and the report service all still refusing it.
 
+## Revisited, 2026-10-20
+
+DNS was the first wall's one opening: the agents asked the cluster's CoreDNS, which forwards to the internet, and a name looked up can carry data out (the threat model listed it as a residual risk). The agents now have a resolver of their own (`manifests/agent-dns.yaml`): CoreDNS with the `kubernetes` plugin and no `forward` block, which answers for `cluster.local` and nothing else. Their network policy allows DNS to it alone, so a pod that ignores its `dnsConfig` and asks the cluster's CoreDNS gets nothing. The rest of the cluster keeps the forwarding CoreDNS, which the e2e's outside-the-sandbox controls need. The e2e proves both halves in step 8: from a sandbox pod, the MCP server's name resolves and example.com does not, and the cluster's CoreDNS does not answer; from outside the sandbox, example.com resolves. The step was run against the sandbox as it was before the change and failed there, on both sandbox lookups (run [39441398734](https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/runs/39441398734)).
+
 ## How to explain this to a customer
 
 An agent can talk to the one tool it was given and nothing else: not the internet, not the cloud's credential service, not other teams' systems, not the cluster's control plane. The systems it must never reach also refuse it themselves, so a single mistake in the agent's own rules does not open them.

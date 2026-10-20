@@ -57,7 +57,7 @@ trap cleanup EXIT
 # policy refuses it unless egress has been opened.
 sandbox_pod() {
   local name="$1" image="$2" memory="$3"; shift 3
-  python3 - "$name" "$image" "$memory" "${SANDBOX_DNS:-cluster}" "$@" <<'PY' | kubectl apply -f - >/dev/null
+  python3 - "$name" "$image" "$memory" "${SANDBOX_DNS:-agents}" "$@" <<'PY' | kubectl apply -f - >/dev/null
 import json, sys
 name, image, memory, dns, *cmd = sys.argv[1:]
 agents_dns = {"dnsPolicy": "None", "dnsConfig": {

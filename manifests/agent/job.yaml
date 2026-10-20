@@ -27,6 +27,13 @@ spec:
       serviceAccountName: researcher
       automountServiceAccountToken: false
       restartPolicy: Never
+      # The agents' own resolver: the cluster's names and nothing else
+      # (agent-dns.yaml). The network policy refuses the cluster's CoreDNS.
+      dnsPolicy: None
+      dnsConfig:
+        nameservers: [10.96.0.53]
+        searches: [agents.svc.cluster.local, svc.cluster.local, cluster.local]
+        options: [{name: ndots, value: "5"}]
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -81,6 +88,13 @@ spec:
       serviceAccountName: records-clerk
       automountServiceAccountToken: false
       restartPolicy: Never
+      # The agents' own resolver: the cluster's names and nothing else
+      # (agent-dns.yaml). The network policy refuses the cluster's CoreDNS.
+      dnsPolicy: None
+      dnsConfig:
+        nameservers: [10.96.0.53]
+        searches: [agents.svc.cluster.local, svc.cluster.local, cluster.local]
+        options: [{name: ndots, value: "5"}]
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001

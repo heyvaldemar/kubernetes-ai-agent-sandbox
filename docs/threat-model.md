@@ -24,8 +24,9 @@ The agent will be fooled. A model that reads untrusted text, whether a web page,
 
 | Threat | Control | Evidence |
 |---|---|---|
-| The agent follows an injected instruction and sends its task to an outside address | nothing leaves an agent pod but DNS and the MCP server (`network-policies.yaml`) | the demo agent follows the injection in its tool's answer and is blocked; a pod outside the sandbox reaches the same address, so the block is the sandbox's |
+| The agent follows an injected instruction and sends its task to an outside address | nothing leaves an agent pod but DNS to the agents' own resolver, which answers for the cluster's names only, and the MCP server (`network-policies.yaml`, `agent-dns.yaml`) | the demo agent follows the injection in its tool's answer and is blocked; a pod outside the sandbox reaches the same address, so the block is the sandbox's |
 | The agent asks the instance metadata service for cloud credentials | the same egress allowlist; 169.254.169.254 is not on it | the demo agent's request times out |
+| The agent carries data out in the names it looks up | the agents ask a resolver of their own, CoreDNS with no forward block, so no outside name is answered or relayed; their network policy refuses the cluster's CoreDNS, which forwards (`agent-dns.yaml`, `network-policies.yaml`) | e2e step 8: a sandbox pod resolves the MCP server's name and no outside name, and cannot ask the cluster's CoreDNS; outside the sandbox the same name resolves |
 | The agent reaches another team's service | the egress allowlist, and a second wall: `corp` refuses any namespace labelled as a sandbox | the demo agent is blocked; with the sandbox's egress opened by mistake, `corp` still refuses it while the internet answers |
 | The agent uses the Kubernetes API | no service account token in the pod (admission refuses one, and refuses a projected token for any audience but the MCP server's), and the API server is not on the egress allowlist | planted pods with an API token, a projected token with no audience and one valid for a day refused; the demo agents find no API token and cannot connect |
 | The agent's MCP token is replayed at the API server, or an API token at the MCP server | each token names one audience: the MCP server checks its own with TokenReview, the API server refuses any other | the API server answers the MCP token with 401; the MCP server answers an API token with 401 and its own with 200; a static check fails if an agent's Job asks for another audience |
@@ -64,7 +65,7 @@ With it, the same gVisor pod was killed at its limit, at 128 MiB, instead of rea
 
 ## Residual risks
 
-- **DNS is open.** An agent can resolve any name, and a query is itself a way out: data can be encoded into the names it looks up. Closing it needs a DNS policy that answers only for allowed names, which this sandbox does not have.
+- **A name inside the cluster can still carry a few bytes.** The agents' resolver answers only for `cluster.local`, so nothing it hears leaves the cluster; a workload that read its query log could still be told something. Its log records errors only, and nothing else reads its queries.
 - **The tools are trusted.** The MCP server decides who may call a tool, not what a granted tool does. `quarterly_report` fetches one fixed address; a tool that fetched whatever URL it was given would be an exit, granted or not.
 - **An instruction in plain words passes the MCP server.** It caps a result's size and strips control characters. It cannot tell an instruction from data, and the report tool hands the agent its injection every run. The sandbox is what decides what acting on it can reach.
 - **Whoever can create a pod in `agents` chooses its ServiceAccount, and with it the grant.** The agents themselves have no API access; cluster administrators do.
