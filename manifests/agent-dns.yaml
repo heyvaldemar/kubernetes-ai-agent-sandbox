@@ -91,7 +91,11 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities: {drop: [ALL]}
+            # The image's /coredns carries the file capability
+            # NET_BIND_SERVICE, and with every capability dropped the kernel
+            # refuses to exec it ("operation not permitted"). Restricted Pod
+            # Security allows adding this one back, and nothing else.
+            capabilities: {drop: [ALL], add: [NET_BIND_SERVICE]}
           volumeMounts: [{name: config, mountPath: /etc/coredns, readOnly: true}]
           readinessProbe:
             tcpSocket: {port: 1053}
