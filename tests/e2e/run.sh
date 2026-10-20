@@ -21,6 +21,9 @@
 #      upstreams still refuse it
 #   7. a sandbox pod is killed at its memory limit, and the namespace quota
 #      refuses a pod that would exceed it
+#   8. a sandbox pod resolves the cluster's names and no outside name, and
+#      cannot ask the cluster's CoreDNS, which forwards; outside the sandbox
+#      the same outside name resolves
 #
 # Needs kubectl and python3. Writes a summary to $GITHUB_STEP_SUMMARY when set.
 # shellcheck disable=SC2015
@@ -49,15 +52,21 @@ trap cleanup EXIT
 
 # A pod in the sandbox that meets every admission rule. $1 name, $2 image,
 # $3 memory limit, then the command.
+# A sandbox pod asks the agents' resolver, like the agents' Jobs; with
+# SANDBOX_DNS=cluster it keeps the cluster's CoreDNS, which the network
+# policy refuses it unless egress has been opened.
 sandbox_pod() {
   local name="$1" image="$2" memory="$3"; shift 3
-  python3 - "$name" "$image" "$memory" "$@" <<'PY' | kubectl apply -f - >/dev/null
+  python3 - "$name" "$image" "$memory" "${SANDBOX_DNS:-cluster}" "$@" <<'PY' | kubectl apply -f - >/dev/null
 import json, sys
-name, image, memory, *cmd = sys.argv[1:]
+name, image, memory, dns, *cmd = sys.argv[1:]
+agents_dns = {"dnsPolicy": "None", "dnsConfig": {
+    "nameservers": ["10.96.0.53"], "searches": ["agents.svc.cluster.local", "svc.cluster.local", "cluster.local"],
+    "options": [{"name": "ndots", "value": "5"}]}} if dns == "agents" else {}
 print(json.dumps({
   "apiVersion": "v1", "kind": "Pod",
   "metadata": {"name": name, "namespace": "agents"},
-  "spec": {
+  "spec": dict(agents_dns, **{
     "runtimeClassName": "gvisor", "automountServiceAccountToken": False, "restartPolicy": "Never",
     "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "runAsGroup": 10001,
                         "seccompProfile": {"type": "RuntimeDefault"}},
@@ -65,7 +74,7 @@ print(json.dumps({
       "name": "c", "image": image, "command": cmd,
       "resources": {"requests": {"cpu": "10m", "memory": "16Mi"}, "limits": {"cpu": "200m", "memory": memory}},
       "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True,
-                          "capabilities": {"drop": ["ALL"]}}}]}}))
+                          "capabilities": {"drop": ["ALL"]}}}]})}))
 PY
 }
 # Wait for a Job to succeed or fail. (A finished Job has two True
@@ -245,7 +254,7 @@ spec:
   egress:
     - {}
 EOF
-sandbox_pod e2e-wall "$CURL" 64Mi sh -c "$probe_script" sh "$CORP" "$OUTSIDE" "$RECORDS" "$REPORT"
+SANDBOX_DNS=cluster sandbox_pod e2e-wall "$CURL" 64Mi sh -c "$probe_script" sh "$CORP" "$OUTSIDE" "$RECORDS" "$REPORT"
 finished agents e2e-wall >/dev/null
 wall="$(kubectl -n agents logs e2e-wall 2>/dev/null)"
 kubectl -n agents delete networkpolicy e2e-open-egress >/dev/null 2>&1
@@ -287,6 +296,40 @@ PY
 )"
 grep -q "exceeded quota" <<<"$quota" && pass "a pod asking for 3Gi is refused by the namespace quota" \
   || fail "a pod asking for 3Gi was not refused by the quota: $quota"
+
+# --- 8 -----------------------------------------------------------------------
+step "8. names: the cluster's, and nothing else"
+# A lookup relayed to the internet carries data out in the name it asks for.
+# The agents ask a resolver of their own, which answers for cluster.local
+# only, and their network policy refuses the cluster's CoreDNS. Three
+# lookups from one sandbox pod, then the same outside name from outside.
+kube_dns="$(kubectl -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}')"
+# shellcheck disable=SC2016
+sandbox_pod e2e-names "$BUSYBOX" 32Mi sh -c 'for q in "$@"; do echo "== $q"; nslookup -timeout=3 $q 2>&1; done' sh \
+  mcp-server.mcp.svc.cluster.local example.com "example.com $kube_dns"
+finished agents e2e-names >/dev/null
+names="$(kubectl -n agents logs e2e-names 2>/dev/null)"
+answered() {  # did the lookup headed "== $1" get an address back?
+  awk -v q="== $1" '$0 == q {on = 1; next} /^== / {on = 0} on' <<<"$names" | sed -n '/^Name:/,$p' | grep -qE '^Address:? [0-9]'
+}
+if answered mcp-server.mcp.svc.cluster.local; then
+  pass "control: a sandbox pod resolves the MCP server's name through the agents' resolver"
+else
+  fail "control: a sandbox pod cannot resolve mcp-server.mcp.svc.cluster.local, so its refusals below prove nothing: ${names:-no output}"
+fi
+if answered example.com; then fail "a sandbox pod resolved example.com: DNS is a way out"; else pass "a sandbox pod resolves no outside name"; fi
+if answered "example.com $kube_dns"; then
+  fail "a sandbox pod asked the cluster's CoreDNS ($kube_dns) for example.com and got an answer"
+else
+  pass "a sandbox pod cannot ask the cluster's CoreDNS ($kube_dns), which forwards"
+fi
+kubectl -n e2e-control run e2e-control-names --image="$BUSYBOX" --restart=Never --command -- nslookup -timeout=3 example.com >/dev/null 2>&1
+[ "$(finished e2e-control e2e-control-names)" = Succeeded ] || true
+if kubectl -n e2e-control logs e2e-control-names 2>/dev/null | sed -n '/^Name:/,$p' | grep -qE '^Address:? [0-9]'; then
+  pass "control: outside the sandbox, example.com resolves: the sandbox's silence is its own"
+else
+  fail "control: example.com did not resolve outside the sandbox either"
+fi
 
 # A copy the status workflow reads (scripts/status.py), when one is asked for.
 if [ -n "${E2E_RESULTS:-}" ]; then
