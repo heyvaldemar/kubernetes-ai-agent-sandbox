@@ -17,13 +17,14 @@
 #      other's token; every decision is in the MCP server's log with the
 #      caller's pod; the records key exists only where it is used
 #   5. from outside the sandbox, the same addresses answer
-#   6. with the sandbox's egress opened by mistake, corp and the tools'
-#      upstreams still refuse it
-#   7. a sandbox pod is killed at its memory limit, and the namespace quota
-#      refuses a pod that would exceed it
-#   8. a sandbox pod resolves the cluster's names and no outside name, and
+#   6. a sandbox pod resolves the cluster's names and no outside name, and
 #      cannot ask the cluster's CoreDNS, which forwards; outside the sandbox
 #      the same outside name resolves
+#   7. with the sandbox's egress opened by mistake, corp and the tools'
+#      upstreams still refuse it; with the mistake undone, the first wall
+#      holds again
+#   8. a sandbox pod is killed at its memory limit, and the namespace quota
+#      refuses a pod that would exceed it
 #
 # Needs kubectl and python3. Writes a summary to $GITHUB_STEP_SUMMARY when set.
 # shellcheck disable=SC2015
@@ -241,64 +242,7 @@ else
 fi
 
 # --- 6 -----------------------------------------------------------------------
-step "6. the first wall opened by mistake; the second holds"
-kubectl apply -f - >/dev/null <<'EOF'
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: e2e-open-egress
-  namespace: agents
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - {}
-EOF
-SANDBOX_DNS=cluster sandbox_pod e2e-wall "$CURL" 64Mi sh -c "$probe_script" sh "$CORP" "$OUTSIDE" "$RECORDS" "$REPORT"
-finished agents e2e-wall >/dev/null
-wall="$(kubectl -n agents logs e2e-wall 2>/dev/null)"
-kubectl -n agents delete networkpolicy e2e-open-egress >/dev/null 2>&1
-if grep -q "^$OUTSIDE 200" <<<"$wall" && grep -q "^$CORP 000" <<<"$wall" &&
-   grep -q "^$RECORDS 000" <<<"$wall" && grep -q "^$REPORT 000" <<<"$wall"; then
-  pass "with all egress allowed the internet answers the sandbox; corp, the records service and the report service still refuse it"
-else
-  fail "with egress opened: ${wall:-no output}"
-fi
-
-# --- 7 -----------------------------------------------------------------------
-step "7. limits"
-sandbox_pod e2e-hog "$PYTHON" 128Mi python3 -c "
-import time
-chunks = []
-for i in range(64):
-    chunks.append(b'\x01' * (16 * 1024 * 1024))
-    print(len(chunks) * 16, flush=True)
-    time.sleep(0.05)"
-finished agents e2e-hog >/dev/null
-reason="$(kubectl -n agents get pod e2e-hog -o jsonpath='{.status.containerStatuses[0].state.terminated.reason}' 2>/dev/null)"
-held="$(kubectl -n agents logs e2e-hog 2>/dev/null | tail -1)"
-# The limit is 128Mi plus gVisor's 32Mi overhead, at the pod's cgroup.
-if [ "$reason" = OOMKilled ] && [ "${held:-0}" -le 160 ]; then
-  pass "a sandbox pod with a 128Mi limit was killed holding ${held}MiB"
-else
-  fail "the memory hog ended '${reason:-running}' holding ${held:-?}MiB against a 128Mi limit"
-fi
-quota="$(python3 - <<'PY' | kubectl apply --dry-run=server -f - 2>&1
-import json
-print(json.dumps({"apiVersion": "v1", "kind": "Pod", "metadata": {"name": "e2e-greedy", "namespace": "agents"},
-  "spec": {"runtimeClassName": "gvisor", "automountServiceAccountToken": False,
-    "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "seccompProfile": {"type": "RuntimeDefault"}},
-    "containers": [{"name": "c", "image": "docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
-      "command": ["sleep", "60"],
-      "resources": {"requests": {"cpu": "10m", "memory": "16Mi"}, "limits": {"cpu": "100m", "memory": "3Gi"}},
-      "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}}]}}))
-PY
-)"
-grep -q "exceeded quota" <<<"$quota" && pass "a pod asking for 3Gi is refused by the namespace quota" \
-  || fail "a pod asking for 3Gi was not refused by the quota: $quota"
-
-# --- 8 -----------------------------------------------------------------------
-step "8. names: the cluster's, and nothing else"
+step "6. names: the cluster's, and nothing else"
 # A lookup relayed to the internet carries data out in the name it asks for.
 # The agents ask a resolver of their own, which answers for cluster.local
 # only, and their network policy refuses the cluster's CoreDNS. Three
@@ -330,6 +274,81 @@ if kubectl -n e2e-control logs e2e-control-names 2>/dev/null | sed -n '/^Name:/,
 else
   fail "control: example.com did not resolve outside the sandbox either"
 fi
+
+# --- 7 -----------------------------------------------------------------------
+step "7. the first wall opened by mistake; the second holds, and the first closes again"
+kubectl apply -f - >/dev/null <<'EOF'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: e2e-open-egress
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}
+EOF
+SANDBOX_DNS=cluster sandbox_pod e2e-wall "$CURL" 64Mi sh -c "$probe_script" sh "$CORP" "$OUTSIDE" "$RECORDS" "$REPORT"
+finished agents e2e-wall >/dev/null
+wall="$(kubectl -n agents logs e2e-wall 2>/dev/null)"
+kubectl -n agents delete networkpolicy e2e-open-egress >/dev/null 2>&1
+if grep -q "^$OUTSIDE 200" <<<"$wall" && grep -q "^$CORP 000" <<<"$wall" &&
+   grep -q "^$RECORDS 000" <<<"$wall" && grep -q "^$REPORT 000" <<<"$wall"; then
+  pass "with all egress allowed the internet answers the sandbox; corp, the records service and the report service still refuse it"
+else
+  fail "with egress opened: ${wall:-no output}"
+fi
+# Undoing the mistake has to close the wall again: a new sandbox pod, after
+# the policy that opened it is deleted, must not reach the internet. Polled,
+# since the network plugin applies a deleted policy on its own schedule; how
+# long it took is printed, and a minute without closing is a failure.
+closed=""
+for i in $(seq 1 12); do
+  kubectl -n agents delete pod e2e-reclosed --ignore-not-found --wait=true >/dev/null 2>&1
+  SANDBOX_DNS=cluster sandbox_pod e2e-reclosed "$CURL" 64Mi sh -c "$probe_script" sh "$OUTSIDE" "http://1.1.1.1/"
+  finished agents e2e-reclosed >/dev/null
+  again="$(kubectl -n agents logs e2e-reclosed 2>/dev/null)"
+  if grep -q "^$OUTSIDE 000" <<<"$again" && grep -q "^http://1.1.1.1/ 000" <<<"$again"; then closed="$i"; break; fi
+  sleep 5
+done
+if [ -n "$closed" ]; then
+  pass "with the mistake undone, the first wall holds again for a new sandbox pod (attempt $closed)"
+else
+  fail "with the policy that opened egress deleted, a new sandbox pod still reached the internet a minute later: $again"
+fi
+
+# --- 8 -----------------------------------------------------------------------
+step "8. limits"
+sandbox_pod e2e-hog "$PYTHON" 128Mi python3 -c "
+import time
+chunks = []
+for i in range(64):
+    chunks.append(b'\x01' * (16 * 1024 * 1024))
+    print(len(chunks) * 16, flush=True)
+    time.sleep(0.05)"
+finished agents e2e-hog >/dev/null
+reason="$(kubectl -n agents get pod e2e-hog -o jsonpath='{.status.containerStatuses[0].state.terminated.reason}' 2>/dev/null)"
+held="$(kubectl -n agents logs e2e-hog 2>/dev/null | tail -1)"
+# The limit is 128Mi plus gVisor's 32Mi overhead, at the pod's cgroup.
+if [ "$reason" = OOMKilled ] && [ "${held:-0}" -le 160 ]; then
+  pass "a sandbox pod with a 128Mi limit was killed holding ${held}MiB"
+else
+  fail "the memory hog ended '${reason:-running}' holding ${held:-?}MiB against a 128Mi limit"
+fi
+quota="$(python3 - <<'PY' | kubectl apply --dry-run=server -f - 2>&1
+import json
+print(json.dumps({"apiVersion": "v1", "kind": "Pod", "metadata": {"name": "e2e-greedy", "namespace": "agents"},
+  "spec": {"runtimeClassName": "gvisor", "automountServiceAccountToken": False,
+    "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "seccompProfile": {"type": "RuntimeDefault"}},
+    "containers": [{"name": "c", "image": "docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+      "command": ["sleep", "60"],
+      "resources": {"requests": {"cpu": "10m", "memory": "16Mi"}, "limits": {"cpu": "100m", "memory": "3Gi"}},
+      "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}}]}}))
+PY
+)"
+grep -q "exceeded quota" <<<"$quota" && pass "a pod asking for 3Gi is refused by the namespace quota" \
+  || fail "a pod asking for 3Gi was not refused by the quota: $quota"
 
 # A copy the status workflow reads (scripts/status.py), when one is asked for.
 if [ -n "${E2E_RESULTS:-}" ]; then

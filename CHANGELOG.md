@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
-- **DNS no longer leaves the sandbox.** The agents asked the cluster's CoreDNS, which forwards to the internet, so a fooled agent could carry data out in the names it looked up; the threat model listed it as a residual risk. The agents now ask a resolver of their own, CoreDNS with no `forward` block, answering for `cluster.local` only (`manifests/agent-dns.yaml`), and their network policy refuses the cluster's CoreDNS. New e2e step 8: a sandbox pod resolves the MCP server's name and no outside name, cannot ask the cluster's CoreDNS, and outside the sandbox the same name resolves. Run against the sandbox before the change, the step failed on both sandbox lookups (run 39441398734; ADR 3, revisited).
+- **DNS no longer leaves the sandbox.** The agents asked the cluster's CoreDNS, which forwards to the internet, so a fooled agent could carry data out in the names it looked up; the threat model listed it as a residual risk. The agents now ask a resolver of their own, CoreDNS with no `forward` block, answering for `cluster.local` only (`manifests/agent-dns.yaml`), and their network policy refuses the cluster's CoreDNS. New e2e step 6: a sandbox pod resolves the MCP server's name and no outside name, cannot ask the cluster's CoreDNS, and outside the sandbox the same name resolves. Run against the sandbox before the change, the step failed on both sandbox lookups (run 39441398734; ADR 3, revisited).
 
 ### Added
 
