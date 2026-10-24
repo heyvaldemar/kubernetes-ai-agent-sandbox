@@ -1,0 +1,272 @@
+{
+  "repository": "heyvaldemar/kubernetes-ai-agent-sandbox",
+  "workflow": "e2e.yml",
+  "written_at": "2026-10-24T12:08:05Z",
+  "window_days": 30,
+  "days_with_runs": 12,
+  "green_days": 12,
+  "streak_days": 12,
+  "runs": 41,
+  "runs_passed": 41,
+  "latest": {
+    "conclusion": "success",
+    "at": "2026-10-24T08:55:25Z",
+    "url": "https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/actions/runs/40079921977",
+    "commit": "7a13a20",
+    "checks_passed": 62,
+    "checks_failed": 0,
+    "checks": [
+      {
+        "state": "PASS",
+        "name": "no swap on the node; a sandbox pod's memory limit holds (see docs/threat-model.md)"
+      },
+      {
+        "state": "PASS",
+        "name": "a sandbox pod sees kernel 4.19.0-gvisor; the node runs 6.17.0-1022-azure"
+      },
+      {
+        "state": "PASS",
+        "name": "api-audience-token: refused (a token in an agent pod is for the MCP server only)"
+      },
+      {
+        "state": "PASS",
+        "name": "api-token: refused (an agent pod gets no Kubernetes API token)"
+      },
+      {
+        "state": "PASS",
+        "name": "compliant-pod: admitted"
+      },
+      {
+        "state": "PASS",
+        "name": "deployment-no-gvisor: refused (an agent pod runs on gVisor)"
+      },
+      {
+        "state": "PASS",
+        "name": "long-lived-token: refused (a token in an agent pod is for the MCP server only)"
+      },
+      {
+        "state": "PASS",
+        "name": "mcp-token-pod: admitted"
+      },
+      {
+        "state": "PASS",
+        "name": "no-gvisor: refused (an agent pod runs on gVisor)"
+      },
+      {
+        "state": "PASS",
+        "name": "no-limits: refused (every container declares CPU and memory limits)"
+      },
+      {
+        "state": "PASS",
+        "name": "privileged: refused (violates PodSecurity)"
+      },
+      {
+        "state": "PASS",
+        "name": "secret-env: refused (an agent pod takes no Secret into its environment)"
+      },
+      {
+        "state": "PASS",
+        "name": "secret-volume: refused (an agent pod mounts no Secret)"
+      },
+      {
+        "state": "PASS",
+        "name": "tag-only: refused (every image is referenced by digest)"
+      },
+      {
+        "state": "PASS",
+        "name": "tool-server-no-gvisor: refused (a tool server runs on gVisor)"
+      },
+      {
+        "state": "PASS",
+        "name": "writable-root: refused (every container runs with a read-only root filesystem)"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: kernel is gVisor's, not the host's: gvisor"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: no Kubernetes API token on disk: absent"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the one credential it holds is its MCP token: mcp"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: its own filesystem is read-only: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the MCP server refuses a call that names no caller: HTTP 401"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the MCP server lists the one tool it is granted: quarterly_report"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: calls the tool it was given: reached"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: follows the injected instruction to https://example.com/collect: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: asks the MCP server for a tool it was not granted: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: asks the MCP server for the destructive tool: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: reads a resource it was not granted: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: calls its tool in a loop: rate limited"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the records service directly, past the MCP server: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the report service directly, past the MCP server: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: cloud credentials from the instance metadata service: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: another team's internal service: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the Kubernetes API: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "researcher: the internet by IP address, past DNS: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: kernel is gVisor's, not the host's: gvisor"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: no Kubernetes API token on disk: absent"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: the one credential it holds is its MCP token: mcp"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: its own filesystem is read-only: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: the MCP server refuses a call that names no caller: HTTP 401"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: the MCP server lists the one tool it is granted: records_lookup"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: looks up a customer through the MCP server, without the key: reached"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: passes an argument that is not a customer ID: invalid"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: asks the MCP server for the destructive tool: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: asks the MCP server for a tool it was not granted: refused"
+      },
+      {
+        "state": "PASS",
+        "name": "records-clerk: the records service directly, past the MCP server: blocked"
+      },
+      {
+        "state": "PASS",
+        "name": "the API server refuses the MCP token: HTTP 401"
+      },
+      {
+        "state": "PASS",
+        "name": "the MCP server refuses a Kubernetes API token (401) and takes its own audience's (200)"
+      },
+      {
+        "state": "PASS",
+        "name": "audit: the researcher's attempt at the records tool is logged as denied, with its pod (agent-demo-crqzn)"
+      },
+      {
+        "state": "PASS",
+        "name": "audit: the records clerk's lookup is logged as allowed, with its pod"
+      },
+      {
+        "state": "PASS",
+        "name": "audit: the destructive tool was never allowed to anyone"
+      },
+      {
+        "state": "PASS",
+        "name": "audit: the researcher's loop is logged as rate limited, 3 times"
+      },
+      {
+        "state": "PASS",
+        "name": "audit: the records service saw the lookup, and no delete"
+      },
+      {
+        "state": "PASS",
+        "name": "the records key exists in corp and mcp only, never in a sandbox namespace"
+      },
+      {
+        "state": "PASS",
+        "name": "outside the sandbox, corp and the internet answer: the agent's refusals are the sandbox's doing"
+      },
+      {
+        "state": "PASS",
+        "name": "control: a sandbox pod resolves the MCP server's name through the agents' resolver"
+      },
+      {
+        "state": "PASS",
+        "name": "a sandbox pod resolves no outside name"
+      },
+      {
+        "state": "PASS",
+        "name": "a sandbox pod cannot ask the cluster's CoreDNS (10.96.0.10), which forwards"
+      },
+      {
+        "state": "PASS",
+        "name": "control: outside the sandbox, example.com resolves: the sandbox's silence is its own"
+      },
+      {
+        "state": "PASS",
+        "name": "with all egress allowed the internet answers the sandbox; corp, the records service and the report service still refuse it"
+      },
+      {
+        "state": "PASS",
+        "name": "with the mistake undone, a new sandbox pod passes the gate and reaches nothing outside (attempt 1)"
+      },
+      {
+        "state": "PASS",
+        "name": "a sandbox pod with a 128Mi limit was killed holding 112MiB"
+      },
+      {
+        "state": "PASS",
+        "name": "a pod asking for 3Gi is refused by the namespace quota"
+      }
+    ],
+    "measured": [
+      "a new sandbox pod's first query, before the network plugin knows the pod: answered by the cluster's CoreDNS (the gate is why the agents do not start until it stops)"
+    ]
+  }
+}
