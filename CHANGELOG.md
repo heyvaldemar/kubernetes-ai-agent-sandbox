@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.3.0] - 2026-11-05
+
 ### Added
 
 - A boundary probe for any Linux sandbox ([ADR 6](docs/decisions/0006-a-boundary-probe-for-any-sandbox.md)): `probes/boundary_probe.py` makes eight planted attempts to get out from inside the sandbox it runs in (a host off the allowlist, through the proxy, around it and by address; host files outside the workspace; credential files, an SSH agent and the instance metadata service; the host's Docker socket, judged by its daemon ID; a variable set only in the host's shell; writes outside the workspace; a random token carried out as a DNS name four ways; root, and from root the host file through PID 1, the host's file shares mounted again and a setuid file left for the host) and reports each as a JSON line in the agents' format, marked as a test fixture. It reads no credential's value. `verify` settles on the host what only the host can see. `probes/sbx-probe.sh` runs it in a Docker Sandboxes sandbox and keeps the sandbox's policy log beside the results.
@@ -82,7 +86,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - A threat model, including a finding: on a node with swap, a pod under gVisor is held to its pod's RAM plus unlimited swap, not to its memory limit.
 - Four decision records.
 
-[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.0...v1.0.1
