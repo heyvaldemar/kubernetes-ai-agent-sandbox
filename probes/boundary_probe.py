@@ -14,7 +14,8 @@ Inside the sandbox:
     python3 -I boundary_probe.py attempt --token T [targets] > results.jsonl
 
 On the host, afterwards, for what only the host can see (did a file written
-inside appear outside, and who owns it there):
+inside appear outside, who owns it there, and are the names seen in the host
+user's home the host's):
 
     python3 -I boundary_probe.py verify --results results.jsonl --token T ...
 
@@ -129,6 +130,8 @@ def raw_http(hostport, expect):
     text = data.decode("utf-8", "replace")
     if expect.lower() in text.lower():
         return "reached", f"answered, response contains {expect!r}"
+    if not data:
+        return "blocked", "the connection was accepted, then closed with no answer"
     return "blocked", f"connected, but not the target: {text}"
 
 
@@ -180,10 +183,13 @@ def attempt_host_files(r, a):
         else:
             rel = os.path.relpath(ws, home)
             chain = set() if rel.startswith("..") else {rel.split(os.sep)[0]}
-            extra = entries - chain
-            got = "reached" if extra else "blocked"
-            r.add(2, "host files", "attempt", "the host user's home directory, beyond the workspace", home, got,
-                  f"{len(entries)} entries, {len(extra)} of them not on the way to the workspace")
+            extra = sorted(entries - chain)
+            # A name seen here counts only if the host's home has it too: a
+            # file made inside the sandbox under the same path is not the host's.
+            r.add(2, "host files", "attempt", "the host user's home directory, beyond the workspace", home,
+                  "pending-host-check" if extra else "blocked",
+                  f"inside: {len(entries)} entries, {len(extra)} of them not on the way to the workspace",
+                  host_check={"path": home, "rule": "home-entries", "names": extra})
 
 
 # --- credentials -------------------------------------------------------------
@@ -399,8 +405,16 @@ def root_virtiofs(rel, token):
     return {"got": "blocked", "detail": "; ".join(notes)}
 
 
+def root_remove(path):
+    try:
+        os.remove(path)
+        return {"removed": True}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": err(exc)}
+
+
 ROOT_OPS = {"whoami": root_whoami, "write": root_write, "read": root_read, "suid": root_suid,
-            "virtiofs": root_virtiofs}
+            "virtiofs": root_virtiofs, "remove": root_remove}
 
 
 # --- writes outside the working directory ------------------------------------
@@ -433,6 +447,7 @@ def attempt_writes(r, a):
         r.add(6, "writes", "attempt", f"a file written {label}, outside the workspace", target,
               "pending-host-check" if inside == "written" else "blocked", f"inside: {detail}",
               host_check={"path": target, "rule": "appears"})
+
 
 
 # --- DNS ---------------------------------------------------------------------
@@ -475,7 +490,10 @@ def dns_direct(server, name, expect, tcp=False):
         if tcp:
             with socket.create_connection((server, 53), timeout=TIMEOUT) as s:
                 s.sendall(struct.pack(">H", len(pkt)) + pkt)
-                size = struct.unpack(">H", s.recv(2))[0]
+                head = s.recv(2)
+                if len(head) < 2:
+                    return "blocked", "the connection was accepted, then closed with no answer"
+                size = struct.unpack(">H", head)[0]
                 msg = b""
                 while len(msg) < size:
                     chunk = s.recv(size - len(msg))
@@ -573,7 +591,15 @@ def verify(a):
                 moved = os.path.join(a.host_workspace, os.path.basename(path))
                 if os.path.basename(path).startswith(".boundary-probe-") and os.path.lexists(moved):
                     path = moved
-            if hc["rule"] == "appears":
+            if hc["rule"] == "home-entries":
+                try:
+                    host = set(os.listdir(path))
+                except OSError:
+                    host = set()
+                same = [n for n in hc.get("names", []) if n in host]
+                line["got"] = "reached" if same else "blocked"
+                note = f"{len(same)} of them are in the host's home"
+            elif hc["rule"] == "appears":
                 if os.path.exists(path):
                     line["got"], note = "reached", "on the host"
                 else:

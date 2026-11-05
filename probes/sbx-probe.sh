@@ -61,6 +61,10 @@ echo "probe exit: $rc" >> "$out/run-$tag.txt"
 python3 -I "$here/boundary_probe.py" verify --results "$out/results-$tag.jsonl" --token "$token" \
   --host-workspace "$ws" --cleanup | tee "$out/table-$tag.md"
 sbx policy log "$sandbox" --json > "$out/policy-log-$tag.json" 2>&1 || true
+# The copies the attempts left inside the sandbox, outside its workspace
+# (the host's copies, if any reached it, verify --cleanup has removed).
+sbx exec "$sandbox" sudo -n rm -f "$outside/boundary-probe-$token.txt" "$HOME/boundary-probe-$token.txt" \
+  >/dev/null 2>&1 || true
 rm -f "$fixture" "$outside/boundary-probe-$token.txt" "$HOME/boundary-probe-$token.txt"
 rmdir "$outside" 2>/dev/null || true
 exit "$rc"
