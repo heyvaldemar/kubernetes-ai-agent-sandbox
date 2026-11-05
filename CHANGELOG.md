@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.3.1] - 2026-11-05
+
 ### Fixed
 
 - `probes/sbx-probe.sh` left two files in a clone-mode sandbox's private clone (the workspace control file and the setuid file, which never reach the host, so `verify --cleanup` cannot remove them), an empty `boundary-probe-outside` directory inside the sandbox, and the probe in `/tmp`. It now removes all of them inside the sandbox after `verify`. Found on the first clone-mode run, where `git status` inside the clone showed the two files.
@@ -88,7 +92,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - A threat model, including a finding: on a node with swap, a pod under gVisor is held to its pod's RAM plus unlimited swap, not to its memory limit.
 - Four decision records.
 
-[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.0.1...v1.1.0
