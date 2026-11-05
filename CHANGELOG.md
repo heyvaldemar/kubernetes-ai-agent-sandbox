@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Fixed
+
+- `probes/sbx-probe.sh` left two files in a clone-mode sandbox's private clone (the workspace control file and the setuid file, which never reach the host, so `verify --cleanup` cannot remove them), an empty `boundary-probe-outside` directory inside the sandbox, and the probe in `/tmp`. It now removes all of them inside the sandbox after `verify`. Found on the first clone-mode run, where `git status` inside the clone showed the two files.
 
 ## [1.3.0] - 2026-11-05
 
