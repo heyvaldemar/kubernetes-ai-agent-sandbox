@@ -4,7 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Added
+
+- A boundary probe for any Linux sandbox ([ADR 6](docs/decisions/0006-a-boundary-probe-for-any-sandbox.md)): `probes/boundary_probe.py` makes eight planted attempts to get out from inside the sandbox it runs in (a host off the allowlist, through the proxy, around it and by address; host files outside the workspace; credential files, an SSH agent and the instance metadata service; the host's Docker socket, judged by its daemon ID; a variable set only in the host's shell; writes outside the workspace; a random token carried out as a DNS name four ways; root, and from root the host file through PID 1, the host's file shares mounted again and a setuid file left for the host) and reports each as a JSON line in the agents' format, marked as a test fixture. It reads no credential's value. `verify` settles on the host what only the host can see. `probes/sbx-probe.sh` runs it in a Docker Sandboxes sandbox and keeps the sandbox's policy log beside the results.
+- Verify shows the probe the failure it exists to catch, on every run (`tests/probe/run.sh`): in a container with every door open each of the eight attempts gets through and the token reaches the DNS log of a target container on the runner; in a container with no network, a read-only root, no capabilities and an unprivileged user each attempt is blocked and the token never reaches that log. No outside service is touched. Shellcheck now covers `tests/probe/` and `probes/`, and the image check `tests/probe/run.sh`.
 
 ## [1.2.0] - 2026-10-20
 

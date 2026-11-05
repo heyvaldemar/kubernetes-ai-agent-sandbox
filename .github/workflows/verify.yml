@@ -3,8 +3,9 @@ name: Verify
 # The checks that need no cluster: workflows and shell scripts linted, every
 # manifest valid for Kubernetes 1.37, every image by digest, the agent
 # compiles, the MCP server's grants and protocol, and each of those checks
-# shown the violation it exists for. Then the official MCP Python SDK,
-# pinned by hash, drives the MCP server as a client.
+# shown the violation it exists for. The boundary probe is shown a container
+# with every door open and one with every door shut. Then the official MCP
+# Python SDK, pinned by hash, drives the MCP server as a client.
 on:
   push:
     branches: [main]
@@ -39,7 +40,7 @@ jobs:
         run: docker run --rm -v "$PWD:/mnt" -w /mnt "$ACTIONLINT_IMAGE" -color
 
       - name: shellcheck
-        run: docker run --rm -v "$PWD:/mnt" -w /mnt "$SHELLCHECK_IMAGE" -x scripts/*.sh tests/e2e/*.sh
+        run: docker run --rm -v "$PWD:/mnt" -w /mnt "$SHELLCHECK_IMAGE" -x scripts/*.sh tests/e2e/*.sh tests/probe/*.sh probes/*.sh
 
       - name: Install the pinned tools
         run: ./scripts/install-tools.sh >> "$GITHUB_PATH"
@@ -49,6 +50,12 @@ jobs:
 
       - name: Each check, shown its planted violation
         run: python3 tests/static/plant_violations.py
+
+      # The boundary probe is trusted only after it has failed: in a container
+      # with every door open each of its eight attempts must get through, and
+      # in one with every door shut each must be blocked (tests/probe/run.sh).
+      - name: The boundary probe, shown an open door and a shut one
+        run: ./tests/probe/run.sh
 
       # A server only its own tests understand proves little: the protocol's
       # reference client discovers it, lists, calls and reads as two

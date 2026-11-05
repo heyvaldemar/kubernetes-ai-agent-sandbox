@@ -4,7 +4,7 @@ Most of the code here is written by an AI agent, and the decisions and the verif
 
 ## What this repository claims
 
-Every row of the README's table "What is proven, and how" is a check that runs in CI: `tests/e2e/run.sh` on a fresh kind cluster with gVisor (`.github/workflows/e2e.yml`), or `scripts/validate.sh` with its planted violations and `tests/mcp/sdk_client.py` (`.github/workflows/verify.yml`). Each refusal is paired with a control that must succeed, so a check cannot pass because the environment refuses everything. A claim with no check is not written, and in `docs/threat-model.md` a control with no check is listed as a residual risk. It is a reference architecture on kind, CPU only, at no cloud cost, and nothing says otherwise: no wording about running anywhere in production or holding a certification (the fleet's conformance check refuses it).
+Every row of the README's table "What is proven, and how" is a check that runs in CI: `tests/e2e/run.sh` on a fresh kind cluster with gVisor (`.github/workflows/e2e.yml`), or `scripts/validate.sh` with its planted violations, `tests/probe/run.sh` and `tests/mcp/sdk_client.py` (`.github/workflows/verify.yml`). A run of `probes/` in another sandbox is a measurement of that sandbox, never a row of the table. Each refusal is paired with a control that must succeed, so a check cannot pass because the environment refuses everything. A claim with no check is not written, and in `docs/threat-model.md` a control with no check is listed as a residual risk. It is a reference architecture on kind, CPU only, at no cloud cost, and nothing says otherwise: no wording about running anywhere in production or holding a certification (the fleet's conformance check refuses it).
 
 ## Before changing anything
 
@@ -34,7 +34,7 @@ Everything is pinned:
 - gVisor: the release and the SHA-512 of its bundle per architecture in `gvisor.lock`. `scripts/install-gvisor.sh` refuses a bundle that does not match.
 - kind, kubectl and kubeconform: version and sha256 per platform in `tools.lock`. `scripts/install-tools.sh` refuses a file that does not match.
 - CI images (actionlint, shellcheck): by digest in `ci-images.pins`.
-- Container images: by digest where they are used, in `manifests/`, `tests/e2e/run.sh`, `tests/e2e/plants/` and `kind/cluster.yaml`. One image can be pinned in many files (busybox is in most plants and in `tests/e2e/run.sh`), and a bump moves every copy in one commit. The first row of `tests/static/plants.tsv` quotes the podinfo digest in `manifests/tools.yaml` and moves with it.
+- Container images: by digest where they are used, in `manifests/`, `tests/e2e/run.sh`, `tests/e2e/plants/`, `tests/probe/run.sh` and `kind/cluster.yaml`. One image can be pinned in many files (busybox is in most plants and in `tests/e2e/run.sh`), and a bump moves every copy in one commit. The first row of `tests/static/plants.tsv` quotes the podinfo digest in `manifests/tools.yaml` and moves with it.
 - The MCP SDK: by hash in `tests/mcp/requirements.txt`, compiled with uv from `tests/mcp/requirements.in`.
 - The Kubernetes schemas: a fixed commit of yannh/kubernetes-json-schema in `scripts/validate.sh`.
 - Actions: by commit SHA, bumped weekly by Dependabot in one group and merged by `dependabot-automerge.yml` only after the e2e and Verify pass. The SLSA generator in `release-assets.yml` is the exception: it refuses a SHA, so it is referenced by tag.

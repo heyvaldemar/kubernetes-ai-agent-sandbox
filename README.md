@@ -34,6 +34,7 @@ Every line is a check in `tests/e2e/run.sh` on a fresh cluster, or in `scripts/v
 | Opening the sandbox's egress by mistake does not open other teams' services | with all egress allowed, the internet answers the sandbox; the internal service, the records service and the report service still refuse it |
 | The API server refuses an agent workload that is not sandboxed | twelve planted manifests (no gVisor, an API token, an image by tag, no limits, a writable root, privileged, a Deployment without gVisor, a Secret in the environment, a Secret as a volume, a token with no audience, a token valid for a day, a tool server without gVisor), each refused for the reason it names; two compliant controls admitted |
 | An agent cannot take the node | a memory hog killed at its limit; a pod asking for more than the namespace quota refused |
+| The boundary probe tells an open door from a shut one | `tests/probe/run.sh`: each of the probe's eight attempts (a host off the allowlist, host files outside the workspace, credential files with an SSH agent and the metadata service, the host's Docker socket, the host's environment, writes outside the workspace, DNS as a way out, root and what it reaches) gets through in a container with every door open and is blocked in one with every door shut; the token reaches the target's DNS log from the open one only |
 | Every static check can fail | nine planted violations, each caught: a tag-only image, a misspelled policy field, an agent that does not compile, a destructive tool granted, a grant of a tool that does not exist, a server that lists grants without enforcing them, a server without its rate limit, a server that accepts a browser origin, an agent token minted for the Kubernetes API |
 
 ## What the agents report
@@ -77,6 +78,19 @@ The MCP server writes one line per decision, and the e2e run reads them back:
 ```json
 {"at": "2026-10-15T00:47:38Z", "decision": "denied", "identity": "system:serviceaccount:agents:researcher", "method": "tools/call", "name": "records_lookup", "pod": "agent-demo-z78s5", "reason": "Unknown tool: records_lookup", "status": 200}
 ```
+
+## The same attempts in another sandbox
+
+[`probes/boundary_probe.py`](probes/boundary_probe.py) asks any Linux sandbox the questions the e2e asks of this one: eight planted attempts to get out, each reported as a JSON line in the agents' format and marked as a test fixture. It reads no credential's value: a credential file is reported by its path and size, a variable by its name, an SSH agent by its number of keys. What only the host can see, whether a file written inside appeared outside and who owns it there, is settled on the host afterwards by `verify`. [ADR 6](docs/decisions/0006-a-boundary-probe-for-any-sandbox.md) says why it lives here.
+
+[`probes/sbx-probe.sh`](probes/sbx-probe.sh) runs it in a Docker Sandboxes sandbox and keeps the sandbox's policy log beside the results:
+
+```bash
+sbx create --name probe shell ~/src/some-repo        # or with --clone
+probes/sbx-probe.sh probe ~/src/some-repo ./out <a URL the policy allows> <text on that page>
+```
+
+A run there measures that sandbox on that day, with its versions written next to the results; this repository claims nothing about it. The claim here is only the table's row above: the probe sees an open door when there is one, on every Verify run. Run by hand, its default targets are on the internet (example.com, 1.1.1.1, a wildcard DNS zone on sslip.io, dns.google) and receive nothing but a random token; in CI every target is a container on the runner.
 
 ## How it works
 
@@ -148,13 +162,15 @@ manifests/agent/      the demo agents and their Jobs
 tests/e2e/            the checks against a running cluster, and the planted manifests
 tests/mcp/            the MCP server's protocol and grant tests, and the official SDK as its client
 tests/static/         the planted violations for the static checks
+tests/probe/          the boundary probe shown an open container and a locked one
+probes/               the boundary probe for any sandbox, and its runner for Docker Sandboxes
 scripts/              install the tools, gVisor and the sandbox, the static checks
 docs/                 the threat model and the decisions
 ```
 
 ## Decisions
 
-[`docs/decisions/`](docs/decisions/): gVisor as the boundary, not Kata or Firecracker on kind; admission by a native policy, not a webhook; egress as an allowlist with a second wall at the destination; a deterministic agent in CI, not a model; an MCP server as the agent's only door, holding the credentials. Each ends with how the choice would be explained to a customer.
+[`docs/decisions/`](docs/decisions/): gVisor as the boundary, not Kata or Firecracker on kind; admission by a native policy, not a webhook; egress as an allowlist with a second wall at the destination; a deterministic agent in CI, not a model; an MCP server as the agent's only door, holding the credentials; one boundary probe for any sandbox, trusted only after it has failed. Each ends with how the choice would be explained to a customer.
 
 This repository is the agent sandbox that sits next to [aws-eks-reference-platform](https://github.com/heyvaldemar/aws-eks-reference-platform): the platform's tenants, admission and GitOps, narrowed to one question, what an untrusted agent can reach.
 
