@@ -1,0 +1,1 @@
+{"schemaVersion": 1, "label": "a new sandbox pod's first query, before the network plugin knows the pod", "message": "answered by the cluster's CoreDNS", "color": "blue"}
