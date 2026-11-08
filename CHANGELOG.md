@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.4.0] - 2026-11-08
+
 ### Added
 
 - A measurement of an upstream default, separate from this repository's own checks ([ADR 7](docs/decisions/0007-measured-upstream-egress.md)). `tests/upstream-egress/` deploys the vendored kubernetes-sigs/agent-sandbox `sandbox-router` (v1.0.10, commit `0d94fc0`, `NetworkPolicy` verbatim) on a fresh kind cluster and measures, with `probes/router_egress_probe.py` through the router's `X-Sandbox-Pod-IP` header, what egress it permits on its default `NetworkPolicy` and with the documented `apiServerCIDRs` restriction. Every target is an in-cluster plain-HTTP stub; nothing reaches the real internet or a cloud. Measured 2026-11-08: on the v1.0.10 default a caller reaches a non-API destination on 443 and 6443; the `apiServerCIDRs` restriction closes that while the API-server stand-in stays reachable. The new workflow `upstream-egress.yml` runs it on demand and when its own files change; it writes no badge and is not a row of the claims table.
@@ -110,7 +114,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - A threat model, including a finding: on a node with swap, a pod under gVisor is held to its pod's RAM plus unlimited swap, not to its memory limit.
 - Four decision records.
 
-[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/heyvaldemar/kubernetes-ai-agent-sandbox/compare/v1.1.0...v1.2.0
