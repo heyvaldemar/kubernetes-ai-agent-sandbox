@@ -1,0 +1,25 @@
+# Operational only. The args list is replaced whole (it is a list of scalars),
+# so every flag the base set is repeated here except --cache-enabled, which
+# moves to false: with the cache off the router needs no API server access or
+# RBAC and runs as a pure proxy, which is all the egress measurement needs.
+# --proxy-timeout drops to 8s and --upstream-max-retries to 0 so a dial that
+# NetworkPolicy drops fails in seconds instead of three minutes. These change
+# how fast and how the router runs, not what its NetworkPolicy permits.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-router
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: sandbox-router
+          args:
+            - --http-bind-address=:8080
+            - --metrics-bind-address=:9090
+            - --health-probe-bind-address=:8081
+            - --cluster-domain=cluster.local
+            - --proxy-timeout=8s
+            - --upstream-max-retries=0
+            - --cache-enabled=false

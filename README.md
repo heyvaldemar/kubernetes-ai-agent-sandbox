@@ -92,6 +92,8 @@ probes/sbx-probe.sh probe ~/src/some-repo ./out <a URL the policy allows> <text 
 
 A run there measures that sandbox on that day, with its versions written next to the results; this repository claims nothing about it. The claim here is only the table's row above: the probe sees an open door when there is one, on every Verify run. Run by hand, its default targets are on the internet (example.com, 1.1.1.1, a wildcard DNS zone on sslip.io, dns.google) and receive nothing but a random token; in CI every target is a container on the runner.
 
+[`tests/upstream-egress/`](tests/upstream-egress/) is a measurement of a different system: the [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) `sandbox-router`, on its [v1.0.10](https://github.com/kubernetes-sigs/agent-sandbox/releases/tag/v1.0.10) default `NetworkPolicy`. That default allows the router egress on TCP 443 and 6443 to any destination, and with the default allow-all authorizer a caller chooses the destination through the `X-Sandbox-Pod-IP` header. The job ([ADR 7](docs/decisions/0007-measured-upstream-egress.md), workflow `upstream-egress.yml`) deploys the vendored upstream manifests on kind and measures that a caller reaches a non-API destination on 443 and 6443 by default, and that the documented `apiServerCIDRs` restriction closes it while the API-server endpoint stays reachable. It measures agent-sandbox v1.0.10; it is not a row of this repository's own table, and this repository is built from its own parts (gVisor, native admission, its own egress allowlist), not from agent-sandbox.
+
 ## How it works
 
 ```mermaid

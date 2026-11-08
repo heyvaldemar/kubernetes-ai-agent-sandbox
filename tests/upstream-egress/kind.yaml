@@ -1,0 +1,11 @@
+# A plain one-node kind cluster for the upstream egress measurement. The node
+# image is pinned to the same digest as kind/cluster.yaml. There is no gVisor
+# runtime handler here: this measurement is about the router's NetworkPolicy,
+# not runtime isolation, and the default CNI (kindnet) enforces NetworkPolicy,
+# which the repository's own e2e already relies on.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: agent-sandbox-egress
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5

@@ -1,0 +1,64 @@
+name: Upstream egress measurement
+
+# A measurement, not a check of this repository. It deploys the vendored
+# kubernetes-sigs/agent-sandbox sandbox-router (v1.0.10, verbatim
+# NetworkPolicy) on a fresh kind cluster and measures what egress the router
+# permits on its default NetworkPolicy and with the documented apiServerCIDRs
+# restriction (tests/upstream-egress/run.sh, docs/decisions/0007-...). It runs
+# only on demand and when its own files change, never on every push, and never
+# writes the README badges. The result is a measurement of agent-sandbox
+# v1.0.10, uploaded as an artifact.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tests/upstream-egress/**
+      - probes/router_egress_probe.py
+      - .github/workflows/upstream-egress.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-egress-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Measure agent-sandbox v1.0.10 router egress
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned tools
+        run: ./scripts/install-tools.sh >> "$GITHUB_PATH"
+
+      - name: Create the kind cluster
+        run: kind create cluster --config tests/upstream-egress/kind.yaml --wait 120s
+
+      - name: Measure
+        env:
+          E2E_RESULTS: ${{ runner.temp }}/upstream-egress-results.json
+        run: ./tests/upstream-egress/run.sh
+
+      - name: Keep the measurement
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upstream-egress-results
+          path: ${{ runner.temp }}/upstream-egress-results.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: What the cluster looked like
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl -n agent-sandbox-system get networkpolicy sandbox-router -o yaml
+          kubectl -n agent-sandbox-system logs deploy/sandbox-router --tail=40 || true
+          kubectl -n caller logs caller --tail=40 || true

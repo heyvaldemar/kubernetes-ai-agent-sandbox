@@ -1,0 +1,25 @@
+# Operational overlay on the vendored upstream router manifests. It changes
+# only what a CI run needs: it creates the namespace, pins the router image by
+# digest, runs one replica, and sets the router to a pure proxy (cache off, so
+# no API dependency) with a short upstream timeout and no retries so a blocked
+# dial fails fast. None of this touches networkpolicy.yaml, the object under
+# measurement, which passes through from the vendor directory byte for byte.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: agent-sandbox-system
+
+resources:
+  - namespace.yaml
+  - ../vendor/agent-sandbox-v1.0.10/sandbox-router/deploy
+
+images:
+  - name: registry.k8s.io/agent-sandbox/sandbox-router-go
+    newName: registry.k8s.io/agent-sandbox/sandbox-router-go
+    digest: sha256:78ced4e7a3495e4bf1c23f43d8912c68f390903adc12ec5bd24d8a715e094f6a
+
+patches:
+  - path: router-ops-patch.yaml
+    target:
+      kind: Deployment
+      name: sandbox-router

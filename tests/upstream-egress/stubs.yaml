@@ -1,0 +1,147 @@
+# Stand-ins for destinations the sandbox-router might be asked to reach, and
+# the caller that drives the measurement. All plain HTTP; no TLS, no real
+# service. The stub source and the probe source are mounted from ConfigMaps
+# that tests/upstream-egress/run.sh creates from the files in this repository.
+#
+# ext-stub carries no sandbox label, so the router's default NetworkPolicy
+# reaches it only on 443 and 6443 (the port-only API-server rule), not on
+# 8888. apisrv-stub stands in for the API server endpoint: the destination a
+# scoped apiServerCIDRs rule keeps allowing. hash-stub carries
+# agents.x-k8s.io/sandbox-name-hash, so the router's sandbox-egress rule
+# reaches it on any TCP port, including 8888.
+#
+# The stubs run as root only to bind ports below 1024 (443, 6443); they are
+# throwaway test fixtures on kind.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ext-targets
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: caller
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ext-stub
+  namespace: ext-targets
+  labels:
+    app: ext-stub
+spec:
+  containers:
+    - name: stub
+      image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+      command: ["python3", "/src/stub_server.py", "443", "6443", "8888"]
+      ports:
+        - containerPort: 443
+        - containerPort: 6443
+        - containerPort: 8888
+      volumeMounts:
+        - name: src
+          mountPath: /src
+          readOnly: true
+      readinessProbe:
+        tcpSocket:
+          port: 8888
+        initialDelaySeconds: 1
+        periodSeconds: 2
+  volumes:
+    - name: src
+      configMap:
+        name: stub-src
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: apisrv-stub
+  namespace: ext-targets
+  labels:
+    app: apisrv-stub
+spec:
+  containers:
+    - name: stub
+      image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+      command: ["python3", "/src/stub_server.py", "6443"]
+      ports:
+        - containerPort: 6443
+      volumeMounts:
+        - name: src
+          mountPath: /src
+          readOnly: true
+      readinessProbe:
+        tcpSocket:
+          port: 6443
+        initialDelaySeconds: 1
+        periodSeconds: 2
+  volumes:
+    - name: src
+      configMap:
+        name: stub-src
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hash-stub
+  namespace: ext-targets
+  labels:
+    app: hash-stub
+    # The controller-stamped label the router's sandbox-egress rule keys on;
+    # here it marks hash-stub as a stand-in for a real sandbox Pod.
+    agents.x-k8s.io/sandbox-name-hash: "stub"
+spec:
+  containers:
+    - name: stub
+      image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+      command: ["python3", "/src/stub_server.py", "8888"]
+      ports:
+        - containerPort: 8888
+      volumeMounts:
+        - name: src
+          mountPath: /src
+          readOnly: true
+      readinessProbe:
+        tcpSocket:
+          port: 8888
+        initialDelaySeconds: 1
+        periodSeconds: 2
+  volumes:
+    - name: src
+      configMap:
+        name: stub-src
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: caller
+  namespace: caller
+  labels:
+    app: egress-probe-caller
+spec:
+  containers:
+    - name: caller
+      image: docker.io/library/python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
+      command: ["sleep", "3600"]
+      volumeMounts:
+        - name: probe
+          mountPath: /probe
+          readOnly: true
+        - name: targets
+          mountPath: /targets
+          readOnly: true
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+  volumes:
+    - name: probe
+      configMap:
+        name: probe-src
+    - name: targets
+      configMap:
+        name: egress-targets

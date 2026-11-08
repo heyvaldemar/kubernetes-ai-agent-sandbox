@@ -1,0 +1,2 @@
+Source: https://github.com/kubernetes-sigs/agent-sandbox/tree/v1.0.10/sandbox-router/deploy
+Tag: v1.0.10 (2026-11-06)  Commit: 0d94fc0bd96c8024d5e7845532d2d7e2a96604ef
