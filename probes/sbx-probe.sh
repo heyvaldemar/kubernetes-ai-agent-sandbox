@@ -53,6 +53,7 @@ if [ -n "$allowed" ]; then
 fi
 
 rc=0
+# conformance: allow-argv-secret - the token is a canary minted for this run, not a credential: the probe also names it as --token
 BOUNDARY_PROBE_HOST_ENV="$token" sbx exec -e BOUNDARY_PROBE_CONTROL="$token" "$sandbox" \
   python3 -I /tmp/boundary_probe.py attempt "$@" \
   > "$out/results-$tag.jsonl" 2> "$out/stderr-$tag.txt" || rc=$?

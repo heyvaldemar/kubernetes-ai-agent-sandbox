@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Changed
+
+- **The probe's canary is declared to fleet conformance.** `probes/sbx-probe.sh` and `tests/probe/run.sh` hand the run's token to the sandbox as `-e BOUNDARY_PROBE_CONTROL="$token"`, which conformance now flags whatever the name. The token is minted for that run to see what crosses the boundary, is not a credential and is also the probe's own `--token` argument, so each command carries `# conformance: allow-argv-secret` with that reason. No behaviour changes.
 
 ## [1.4.0] - 2026-11-08
 

@@ -101,6 +101,7 @@ EOF
 dns_seen() { docker logs "$target" 2>&1 | grep -c "$token" || true; }
 
 printf '\n== the probe, locked in\n'
+# conformance: allow-argv-secret - the token is a canary minted for this run, not a credential: the probe also names it as --token
 docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL \
   --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
   -v "$ws:$ws" -v "$ROOT/probes:/p:ro" -w "$ws" -e BOUNDARY_PROBE_CONTROL="$token" \
@@ -120,6 +121,7 @@ else
 fi
 
 printf '\n== the probe, every door open\n'
+# conformance: allow-argv-secret - the same canary, handed to the open container on purpose
 docker run --rm --network "$net" --dns "$target_ip" --privileged --pid=host \
   -v /var/run/docker.sock:/var/run/docker.sock -v "$work:$work" -v "$home/.aws:/root/.aws:ro" \
   -v "$ROOT/probes:/p:ro" -v "$HERE:/t:ro" -w "$ws" \
