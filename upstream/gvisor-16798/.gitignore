@@ -1,0 +1,11 @@
+# Everything fetch.sh and build.sh make.
+gvisor-go/
+src-base/
+src-pr/
+gen/
+bundle/
+csidecars/
+pr.diff
+pr-head.txt
+stubfilter_precompiled.go.orig
+*.log
