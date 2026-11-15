@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- `scripts/check-freshness.py` is the fleet's one copy of the freshness check, fleet-ops `templates/check-freshness.py`, and what this repository pins is listed in `freshness.json`. A release younger than three days is now a warning that names the moment it becomes a failure: the release-age rule keeps such a version off main anyway, and every upstream release used to turn the check red for three days nobody was allowed to act on. A release whose date cannot be read still fails, and so does a tag that moved to a new digest.
 - **The probe's canary is declared to fleet conformance.** `probes/sbx-probe.sh` and `tests/probe/run.sh` hand the run's token to the sandbox as `-e BOUNDARY_PROBE_CONTROL="$token"`, which conformance now flags whatever the name. The token is minted for that run to see what crosses the boundary, is not a credential and is also the probe's own `--token` argument, so each command carries `# conformance: allow-argv-secret` with that reason. No behaviour changes.
 
 ## [1.4.0] - 2026-11-08
