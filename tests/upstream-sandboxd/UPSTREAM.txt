@@ -1,0 +1,21 @@
+Upstream under measurement: kubernetes-sigs/agent-sandbox, packages/sandboxd
+
+No per-tag sandboxd image is published (only a moving staging tag,
+us-central1-docker.pkg.dev/k8s-staging-images/agent-sandbox/sandboxd:latest-main),
+so each tag below is BUILT FROM ITS OWN SOURCE with the project's own
+packages/sandboxd/Dockerfile. The version is a parameter: run.sh reads
+BASELINE_TAG and CANDIDATE_TAG (the workflow passes them), defaulting to the
+tags here. This file is the single place the defaults are recorded.
+
+  baseline   v1.0.10   commit 0d94fc0bd96c8024d5e7845532d2d7e2a96604ef   2026-11-06
+  candidate  v1.0.11   commit 890de53a4dd18e35313173e6dc34d9559b1a9733   2026-11-12
+
+Release-age rule (AGENTS.md "Pins"): a version is not adopted as the baseline
+default until its release is three days old. v1.0.11 was published
+2026-11-12T23:19Z, so it becomes adoptable on 2026-11-15T23:19Z. Measuring a
+candidate is not adopting it; the baseline default moves to v1.0.11 only after
+this measurement is green AND the release is three days old.
+
+The fixes measured across baseline -> candidate:
+  #2218  fix(sandboxd): delete a symlink itself, not its target
+  #2222  fix(sandboxd): reject named pipes (and device files) in file transfers

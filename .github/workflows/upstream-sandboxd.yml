@@ -1,0 +1,67 @@
+name: Upstream sandboxd measurement
+
+# A measurement, not a check of this repository. It builds the kubernetes-sigs/
+# agent-sandbox sandboxd daemon from two tags (no per-tag image is published),
+# runs each standalone, and measures how it answers a few file operations:
+# GET of a named pipe and a device node (#2222) and DELETE of an in-root
+# symlink (#2218). It prints a before/after table across the two tags
+# (tests/upstream-sandboxd/run.sh, docs/decisions/0008-...). It runs only on
+# demand and when its own files change, never on every push, and never writes
+# the README badges. The result is a measurement of agent-sandbox, uploaded as
+# an artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_tag:
+        description: Baseline agent-sandbox tag
+        required: false
+        default: v1.0.10
+      candidate_tag:
+        description: Candidate agent-sandbox tag
+        required: false
+        default: v1.0.11
+  push:
+    branches: [main]
+    paths:
+      - tests/upstream-sandboxd/**
+      - .github/workflows/upstream-sandboxd.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sandboxd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Measure agent-sandbox sandboxd file-op defaults
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Measure
+        env:
+          SBXD_RESULTS: ${{ runner.temp }}/upstream-sandboxd-results.json
+          BASELINE_TAG: ${{ github.event.inputs.baseline_tag || 'v1.0.10' }}
+          CANDIDATE_TAG: ${{ github.event.inputs.candidate_tag || 'v1.0.11' }}
+        run: ./tests/upstream-sandboxd/run.sh
+
+      - name: Keep the measurement
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upstream-sandboxd-results
+          path: ${{ runner.temp }}/upstream-sandboxd-results.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: What the daemons looked like
+        if: failure()
+        run: |
+          docker ps -a
+          docker images --filter reference='sandboxd-under-test:*'
