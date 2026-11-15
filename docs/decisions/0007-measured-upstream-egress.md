@@ -32,6 +32,10 @@ Config (a) reaching ext-stub on 443/6443 is the demonstration the egress is open
 
 The Go router v1.0.10 already rejects loopback, link-local, multicast and unspecified addresses in `X-Sandbox-Pod-IP` (its own SSRF class check), so the cloud-metadata address is not reachable through it. This measurement is about egress to a routable, non-API destination on `443`/`6443`, which the default `NetworkPolicy` permits; it is not about reaching metadata.
 
+## Revisited 2026-11-15
+
+Re-vendored at v1.0.11 (commit `890de53`). The `sandbox-router/deploy/` manifests, `networkpolicy.yaml` included, are byte-identical to v1.0.10, so the matrix above is unchanged; only the router image digest moved with the new build, `sha256:78ced4e7` to `sha256:47c745b4`, resolved from `registry.k8s.io/agent-sandbox/sandbox-router-go:v1.0.11` (the v1.0.10 tag resolves to the digest pinned before, which checks the method). The vendored tree, the overlay digest and `run.sh` now read v1.0.11; the record above describes the v1.0.10 measurement that established the matrix, re-run unchanged on v1.0.11.
+
 ## Why this repository does not use agent-sandbox
 
 This repository's sandbox is built from its own parts, not from agent-sandbox: the agents run on gVisor (ADR 1), admission refuses any agent workload that is not set up that way (ADR 2), and the agents' own `NetworkPolicy` allows egress only to their resolver and the MCP server, with a second wall at each destination (ADR 3, ADR 5). There is no router with a port-only `443`/`6443` egress rule, and no allow-all authorizer in front of a caller-chosen dial target. The measurement here is of the upstream default, kept beside this repository's own design on purpose, so the difference is visible rather than asserted.

@@ -8,7 +8,7 @@ measurement aimed at the router under test, in the ADR 6 boundary-probe
 family (docs/decisions/0007-...). It is not an attack tool and names no
 target but the stubs and router its caller passes it.
 
-The sandbox-router (release v1.0.10) forwards a request to the address named
+The sandbox-router forwards a request to the address named
 by the caller's `X-Sandbox-Pod-IP` and `X-Sandbox-Port` headers, once the
 address passes its IP-class check (loopback, link-local, multicast and
 unspecified are rejected, so the cloud-metadata address is not reachable
@@ -41,7 +41,7 @@ import sys
 import urllib.error
 import urllib.request
 
-FIXTURE = "TEST FIXTURE: measured on agent-sandbox v1.0.10 router egress defaults"
+FIXTURE = "TEST FIXTURE: measured on agent-sandbox router egress defaults"
 TIMEOUT = 20
 
 
