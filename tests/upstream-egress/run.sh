@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/upstream-egress/run.sh - measure the egress a kubernetes-sigs/
-# agent-sandbox sandbox-router permits, on its v1.0.10 defaults and with the
+# agent-sandbox sandbox-router permits, on its v1.0.11 defaults and with the
 # documented apiServerCIDRs restriction, against the kind cluster in the
 # current kubeconfig.
 #
 # This is a measurement of an upstream project, not a check of this
-# repository. It deploys the vendored upstream router manifests (v1.0.10,
+# repository. It deploys the vendored upstream router manifests (v1.0.11,
 # verbatim NetworkPolicy) through an operational overlay, and sends the router
 # one request per target carrying X-Sandbox-Pod-IP, through a caller Pod. Every
 # target is an in-cluster plain-HTTP stub; nothing reaches the real internet or
@@ -32,9 +32,9 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 NS=agent-sandbox-system
-ROUTER_IMAGE_DIGEST="sha256:78ced4e7a3495e4bf1c23f43d8912c68f390903adc12ec5bd24d8a715e094f6a"
-UPSTREAM_TAG="v1.0.10"
-UPSTREAM_COMMIT="0d94fc0bd96c8024d5e7845532d2d7e2a96604ef"
+ROUTER_IMAGE_DIGEST="sha256:47c745b4324528219601d2e19a77e1e507e426319b5b1000bb9bf11b9e27d724"
+UPSTREAM_TAG="v1.0.11"
+UPSTREAM_COMMIT="890de53a4dd18e35313173e6dc34d9559b1a9733"
 RESULTS="${E2E_RESULTS:-$(mktemp)}"
 work="$(mktemp -d)"
 
@@ -45,7 +45,7 @@ note() { printf '  ..    %s\n' "$*"; }
 cleanup() { rm -rf "$work"; }
 trap cleanup EXIT
 
-say "Deploy the upstream router (config a: v1.0.10 default NetworkPolicy)"
+say "Deploy the upstream router (config a: v1.0.11 default NetworkPolicy)"
 # The overlay creates agent-sandbox-system and the router; stubs.yaml the
 # ext-targets and caller namespaces and the stub and caller Pods.
 kubectl apply -k "$HERE/overlay" >/dev/null
@@ -159,7 +159,7 @@ elif bad:
     verdict = "FAIL"
 
 result = {
-    "measurement": "agent-sandbox sandbox-router egress, v1.0.10 defaults vs apiServerCIDRs",
+    "measurement": "agent-sandbox sandbox-router egress, v1.0.11 defaults vs apiServerCIDRs",
     "fixture": True,
     "upstream": {"repo": "kubernetes-sigs/agent-sandbox", "tag": tag, "commit": commit,
                  "router_image_digest": digest},

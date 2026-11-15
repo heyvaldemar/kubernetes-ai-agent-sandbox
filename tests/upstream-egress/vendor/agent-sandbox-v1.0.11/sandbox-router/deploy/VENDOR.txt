@@ -1,0 +1,6 @@
+Source: https://github.com/kubernetes-sigs/agent-sandbox/tree/v1.0.11/sandbox-router/deploy
+Tag: v1.0.11 (2026-11-12)  Commit: 890de53a4dd18e35313173e6dc34d9559b1a9733
+
+Re-vendored from v1.0.10 on 2026-11-15: the deploy manifests, networkpolicy.yaml
+included, are byte-identical to v1.0.10 (commit 0d94fc0). Only the router image
+digest moved with the new build. See ADR 7, "Revisited".

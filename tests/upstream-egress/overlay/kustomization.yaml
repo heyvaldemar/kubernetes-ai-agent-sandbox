@@ -11,12 +11,12 @@ namespace: agent-sandbox-system
 
 resources:
   - namespace.yaml
-  - ../vendor/agent-sandbox-v1.0.10/sandbox-router/deploy
+  - ../vendor/agent-sandbox-v1.0.11/sandbox-router/deploy
 
 images:
   - name: registry.k8s.io/agent-sandbox/sandbox-router-go
     newName: registry.k8s.io/agent-sandbox/sandbox-router-go
-    digest: sha256:78ced4e7a3495e4bf1c23f43d8912c68f390903adc12ec5bd24d8a715e094f6a
+    digest: sha256:47c745b4324528219601d2e19a77e1e507e426319b5b1000bb9bf11b9e27d724
 
 patches:
   - path: router-ops-patch.yaml
