@@ -39,7 +39,7 @@ Everything is pinned:
 - The Kubernetes schemas: a fixed commit of yannh/kubernetes-json-schema in `scripts/validate.sh`.
 - Actions: by commit SHA, bumped weekly by Dependabot in one group and merged by `dependabot-automerge.yml` only after the e2e and Verify pass. The SLSA generator in `release-assets.yml` is the exception: it refuses a SHA, so it is referenced by tag.
 
-Dependabot reads only the actions. Everything else is moved by hand, with the new hash checked against the publisher's. `scripts/check-freshness.py` reports each pin upstream has moved past and changes nothing.
+Dependabot reads only the actions. Everything else is moved by hand, with the new hash checked against the publisher's. `scripts/check-freshness.py` reports each pin upstream has moved past and changes nothing. A release younger than three days is not pinned here: a pin moved by hand waits until its release is three days old, and so do Dependabot's version updates (its default cooldown since 14 July 2026, which fleet conformance does not let `.github/dependabot.yml` shorten); its security updates open at once. Three days is long enough for a compromised release to be noticed and pulled. The freshness check, which reads what `freshness.json` lists, warns on a younger release and names the moment it becomes a failure.
 
 ## Numbers
 
