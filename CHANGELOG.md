@@ -4,10 +4,22 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- A second measurement of an upstream default, separate from this repository's own checks ([ADR 8](docs/decisions/0008-measured-sandboxd-fileops.md)). `tests/upstream-sandboxd/` builds kubernetes-sigs/agent-sandbox's `sandboxd` daemon from two tags (no per-tag image is published), runs each standalone under `docker`, and measures how it answers a few file operations: `GET` of a named pipe and a device node ([#2222](https://github.com/kubernetes-sigs/agent-sandbox/pull/2222)) and `DELETE` of an in-root symlink ([#2218](https://github.com/kubernetes-sigs/agent-sandbox/pull/2218)). The version is a parameter (`BASELINE_TAG`, `CANDIDATE_TAG`, recorded in `UPSTREAM.txt`). Measured 2026-11-15, v1.0.10 against v1.0.11: the named pipe `GET` hangs on v1.0.10 and returns `400 INVALID_ARGUMENT` on v1.0.11; the device `GET` opens the device and returns `200` on v1.0.10 and `400` on v1.0.11; the in-root symlink `DELETE` follows the link and deletes the target on v1.0.10 and removes the link leaving the target on v1.0.11. The new workflow `upstream-sandboxd.yml` runs it on demand and when its own files change; it writes no badge and is not a row of the claims table. Two honest limits are kept with the result: the device measured (`/dev/zero`) answers `200` rather than hanging on v1.0.10, and an escaping symlink is already refused on v1.0.10, so the symlink data loss is for in-root targets only.
+
 ### Changed
 
 - `scripts/check-freshness.py` is the fleet's one copy of the freshness check, fleet-ops `templates/check-freshness.py`, and what this repository pins is listed in `freshness.json`. A release younger than three days is now a warning that names the moment it becomes a failure: the release-age rule keeps such a version off main anyway, and every upstream release used to turn the check red for three days nobody was allowed to act on. A release whose date cannot be read still fails, and so does a tag that moved to a new digest.
 - **The probe's canary is declared to fleet conformance.** `probes/sbx-probe.sh` and `tests/probe/run.sh` hand the run's token to the sandbox as `-e BOUNDARY_PROBE_CONTROL="$token"`, which conformance now flags whatever the name. The token is minted for that run to see what crosses the boundary, is not a credential and is also the probe's own `--token` argument, so each command carries `# conformance: allow-argv-secret` with that reason. No behaviour changes.
+
+### Verified
+
+- The sandboxd measurement's gate is trusted only after it has failed. `tests/upstream-sandboxd/verdict.py plant` builds a candidate that passes, then sabotages it two ways: it marks the candidate still vulnerable on the named-pipe dimension, and it loses the out-of-root sentinel the escaping-symlink control must keep. The gate rejects each, and `run.sh` runs this before it measures anything:
+
+  ```
+  plant caught: fifo-tampered -> FAILED, sentinel-tampered -> INCONCLUSIVE
+  ```
 
 ## [1.4.0] - 2026-11-08
 

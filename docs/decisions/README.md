@@ -11,3 +11,4 @@ Each record states the context, the decision, what it costs, what was considered
 | 5 | [An MCP server as the agent's only door to its tools](0005-an-mcp-server-as-the-only-door.md) | accepted |
 | 6 | [A boundary probe that runs in any sandbox, trusted only after it has failed](0006-a-boundary-probe-for-any-sandbox.md) | accepted |
 | 7 | [Measuring an upstream default, and why this repository does not use agent-sandbox](0007-measured-upstream-egress.md) | accepted |
+| 8 | [Measuring sandboxd file-operation defaults across two upstream tags](0008-measured-sandboxd-fileops.md) | accepted |

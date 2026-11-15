@@ -40,7 +40,7 @@ check_images() {
   # vendored verbatim at v1.0.10 and pinned by the overlay's image digest.
   local bad
   bad="$(grep -rnE '(image:|"image":|^[A-Z]+=)[[:space:]]*"?[a-z0-9.-]+\.[a-z]+/[^@[:space:]"]+:[^@[:space:]"]+("|$|[[:space:]])' \
-    manifests tests/e2e/run.sh tests/probe/run.sh tests/upstream-egress/run.sh tests/upstream-egress/stubs.yaml tests/upstream-egress/kind.yaml tests/upstream-egress/overlay .github/workflows 2>/dev/null | grep -v '@sha256:' || true)"
+    manifests tests/e2e/run.sh tests/probe/run.sh tests/upstream-egress/run.sh tests/upstream-egress/stubs.yaml tests/upstream-egress/kind.yaml tests/upstream-egress/overlay tests/upstream-sandboxd/run.sh .github/workflows 2>/dev/null | grep -v '@sha256:' || true)"
   if [ -n "$bad" ]; then echo "images without a digest:"; echo "$bad"; return 1; fi
   echo "every image is referenced by digest"
 }
