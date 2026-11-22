@@ -59,6 +59,7 @@ u=${uid//-/_}
 if [ "$DRIVER" = systemd ]; then FIND="-name \"*pod${u}.slice\""; SUB='"$pod"/*.scope'; else FIND="-name \"pod${uid}\""; SUB='"$pod"/*/'; fi
 readcg() { docker exec "$N" sh -c '
   pod=$(find /sys/fs/cgroup -type d '"$FIND"' | head -1)
+  [ -n "$pod" ] || { echo "pod cgroup gone: the whole sandbox ended"; exit 0; }
   r() { printf "%-34s memory.max=%-10s memory.swap.max=%-8s swap.current=%-10s procs=%s\n" "$2" "$(cat $1/memory.max)" "$(cat $1/memory.swap.max)" "$(cat $1/memory.swap.current)" "$(wc -l < $1/cgroup.procs)"; }
   r "$pod" "pod slice"
   for d in '"$SUB"'; do d=${d%/}; r "$d" "  $(basename "$d" | cut -c1-30)"; done

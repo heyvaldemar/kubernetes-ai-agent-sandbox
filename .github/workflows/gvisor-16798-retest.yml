@@ -1,0 +1,112 @@
+name: gVisor 16798 re-test
+
+# The google/gvisor#16798 re-test on the #15756 reproducer, the recipe in
+# upstream/gvisor-16798/ run on an arm64 runner given 1 GiB of swap: runsc
+# built from gVisor's go branch as it is and with the PR's current diff, the
+# issue's hog pod against both, on the systemd and the cgroupfs driver, under
+# the kubelet's NoSwap and LimitedSwap. This file exists on the branch
+# gvisor-16798-repro only, so main never runs it; a push to the branch that
+# touches the recipe or this file starts it. It measures gVisor, never a row
+# of the README's table.
+on:
+  push:
+    branches: [gvisor-16798-repro]
+    paths:
+      - upstream/gvisor-16798/**
+      - .github/workflows/gvisor-16798-retest.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gvisor-16798-retest
+  cancel-in-progress: false
+
+jobs:
+  retest:
+    name: Base and PR, systemd and cgroupfs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+        working-directory: upstream/gvisor-16798
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # tools.lock pins the platforms main's CI and the maintainer's machine
+      # use; this runner is linux/arm64, so its two tools are pinned here,
+      # with the sha256 each publisher lists next to the file.
+      - name: Install kind and kubectl for linux/arm64
+        run: |
+          b="$RUNNER_TEMP/bin"
+          mkdir -p "$b"
+          get() {
+            curl -fsSL --retry 3 -o "$b/$1" "$2"
+            echo "$3  $b/$1" | sha256sum -c -
+            chmod +x "$b/$1"
+          }
+          get kind https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-arm64 20022bee6cfcd5086cb7234d218e3454e6090022f2a8f55d1fa7fcf42c3867a2
+          get kubectl https://dl.k8s.io/release/v1.37.1/bin/linux/arm64/kubectl ff749f4b78d9c4f1ec87307df9b50119ed819e2094aa9810cb9acffc3286c8c7
+          echo "$b" >> "$GITHUB_PATH"
+
+      # The posted runs had 1 GiB of swap; so does this one, whatever the
+      # runner image came with. The log shows both.
+      - name: 1 GiB of swap
+        run: |
+          echo "before:"; cat /proc/swaps
+          sudo swapoff -a
+          sudo fallocate -l 1G /gv16798.swap
+          sudo chmod 600 /gv16798.swap
+          sudo mkswap /gv16798.swap >/dev/null
+          sudo swapon /gv16798.swap
+          echo "after:"; cat /proc/swaps
+          echo "kernel $(uname -r), $(stat -fc %T /sys/fs/cgroup), $(nproc) CPUs, $(free -m | awk '/^Mem:/{print $2}') MiB RAM, docker $(docker version --format '{{.Server.Version}}')"
+
+      - name: Sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./fetch.sh
+
+      - name: Build
+        run: ./build.sh
+
+      - name: systemd driver
+        run: |
+          kind create cluster --config kind.yaml --wait 120s
+          ./series.sh systemd | tee series-systemd.log
+
+      - name: cgroupfs driver
+        run: |
+          kind delete cluster --name gv16798
+          kind create cluster --config kind-fs.yaml --wait 120s
+          ./series.sh cgroupfs | tee series-cgroupfs.log
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### go branch $(git -C gvisor-go rev-parse --short HEAD 2>/dev/null), PR head $(cut -c1-8 pr-head.txt 2>/dev/null)"
+            for d in systemd cgroupfs; do
+              [ -f "series-$d.log" ] || continue
+              echo
+              echo '```'
+              cat "series-$d.log"
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gvisor-16798-retest
+          path: |
+            upstream/gvisor-16798/series-*.log
+            upstream/gvisor-16798/pr-head.txt
+            upstream/gvisor-16798/pr.diff
+          if-no-files-found: ignore
+          retention-days: 30

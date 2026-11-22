@@ -14,8 +14,18 @@ Results posted on the PR: [2026-11-02, first version](https://github.com/google/
 
 An arm64 Linux host with Docker, cgroup v2 and swap on. The runs above used Docker Desktop on Apple silicon:
 kernel 7.0.12, 1 GiB of swap, kind v0.33.0, `kindest/node:v1.37.0`. Tools: docker, kind, kubectl, gh, git, curl.
-The build targets linux/arm64. `containerd-shim-runsc-v1` comes from the 20261012 aarch64 release, whose SHA-512
-is pinned in [gvisor.lock](../../gvisor.lock); `build.sh` prints the first 16 characters of it to compare.
+The build targets linux/arm64. `containerd-shim-runsc-v1` comes from the 20261012 aarch64 release bundle, which
+`build.sh` checks against the SHA-512 published with it (`2fe7425abd16ad6c...`, the full value is in the script) and
+refuses on any difference.
+
+## In CI
+
+[`.github/workflows/gvisor-16798-retest.yml`](../../.github/workflows/gvisor-16798-retest.yml) exists on this
+branch only. It runs steps 1 to 4 on GitHub's `ubuntu-24.04-arm` runner, after giving the runner 1 GiB of swap, and
+starts on any push to the branch that changes this directory or the workflow. The series logs go to the run's summary
+and to its `gvisor-16798-retest` artifact. The runner is a different arm64 host from the one above: its own kernel,
+no Docker Desktop, and a different amount of RAM. LimitedSwap budgets scale with the node's memory and swap, so a CI
+run is read base against PR within that run, never row by row against the posted table.
 
 ## Steps
 

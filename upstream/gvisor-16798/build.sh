@@ -27,7 +27,13 @@ mkdir -p "$W/csidecars"
 docker run --rm -v "$W/src-base/runsc:/src:ro" -v "$W/csidecars:/out" gcc:15 sh -c 'set -e; F="-Os -ffreestanding -fno-sanitize=all -fno-stack-protector -fno-asynchronous-unwind-tables -fno-unwind-tables -static -nostdlib -nostartfiles -no-pie -Wl,--build-id=none -Wl,--gc-sections -Wl,-s -Wl,-n"; gcc $F -o /out/gvisor-proc-umounter /src/procumounter/procumounter.c; gcc $F -o /out/gvisor-sentry-prewarmer /src/prewarmer/prewarmer.c; gcc $F -o /out/runsc-fd-parking /src/fdparking/fdparking.c'
 ls -la "$W/csidecars" | awk 'NF>5{print $5, $9}'
 mkdir -p "$W/bundle/rel" && cd "$W/bundle"
+# The SHA-512 published with the 20261012 aarch64 bundle (the value
+# gvisor.lock held when these re-tests began). Only the containerd shim is
+# taken from it; runsc and its sidecars are the builds above.
+SUM=2fe7425abd16ad6ca649ab9bc3d7e8e76756834d86ffcc08dbe97c82c3b7262a7d6401f23632f2b296649cc1408b560416b2ab65a4043aa123fc7b90f3a1b2e2
 [ -f gvisor-20261012-aarch64.tar.bz2 ] || curl -fsSL --retry 3 -o gvisor-20261012-aarch64.tar.bz2 https://storage.googleapis.com/gvisor/releases/release/20261012/aarch64/gvisor.tar.bz2
-echo "bundle sha512 prefix: $( (sha512sum gvisor-20261012-aarch64.tar.bz2 2>/dev/null || shasum -a 512 gvisor-20261012-aarch64.tar.bz2) | cut -c1-16)"
+got=$( (sha512sum gvisor-20261012-aarch64.tar.bz2 2>/dev/null || shasum -a 512 gvisor-20261012-aarch64.tar.bz2) | cut -d' ' -f1)
+[ "$got" = "$SUM" ] || { echo "bundle sha512 $got, pinned $SUM. Not using it." >&2; exit 1; }
+echo "bundle sha512 matches the pin"
 tar -xjf gvisor-20261012-aarch64.tar.bz2 -C rel && ls rel
 echo BUILD-DONE

@@ -11,7 +11,7 @@ run() { echo "===== $D $*"; DRIVER=$D AFTER=1 ./run-hog.sh "$@"; }
 if [ "$D" = systemd ]; then
   run base; run pr
   limited
-  run pr; run base; run pr two; run base two
+  run pr; run base; run pr two; run base two; CHUNKS=4 run pr two
 else
   run pr; run base
   limited
