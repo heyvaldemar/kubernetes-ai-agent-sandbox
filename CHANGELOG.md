@@ -27,6 +27,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - **A run by hand never replaces a signature a release already carries.** `.github/workflows/release-assets.yml`, started by hand, now refuses a release that already has its signature, or one it cannot read. Replacing the files would have made the signature name `main` instead of the tag, and a check pinned to the tag's identity would then refuse the release. To replace them on purpose, delete the three files first.
 - **A release is verified for its exact signer** (67ccf02). `.github/workflows/release-assets.yml` checks the signature against this repository's `release-assets.yml` on the ref the run ran on; before, any workflow of the repository on any branch passed. A changed archive must now be refused in the tool's own words, so Sigstore out of reach or a missing tool fails the job instead of passing it. A run started by hand runs only from `main`.
 
+### Fixed
+
+- **The freshness check judges a Terraform provider against its newest stable release.** `scripts/check-freshness.py`, the fleet's one copy, took the registry's last published version, pre-releases included, so coder/coder 2.20.1-pre0 read as newer than a pin on 2.20.0. It now takes the newest stable version the registry lists.
+
 ## [1.4.0] - 2026-11-08
 
 ### Added
