@@ -19,8 +19,10 @@ for v in base pr; do
 done
 cmp -s "$W/stubfilter_precompiled.go.orig" "$W/src-base/pkg/sentry/platform/systrap/stubfilter_precompiled.go" && echo "filter: SAME as go branch" || echo "filter: regenerated (differs from the go branch's)"
 cmp -s "$W/src-base/pkg/sentry/platform/systrap/stubfilter_precompiled.go" "$W/src-pr/pkg/sentry/platform/systrap/stubfilter_precompiled.go" && echo "filter: base and pr identical"
+# -buildvcs=false: the version comes from -ldflags, and git in the container
+# refuses a tree owned by another user (the CI runner's), failing the build.
 for v in base pr; do
-  docker run --rm -v gv7-gocache:/go -v gv7-buildcache:/root/.cache -v "$W/src-$v:/src" -w /src -e CGO_ENABLED=0 -e GOOS=linux -e GOARCH=arm64 golang:1.27 sh -c "set -e; L='-X gvisor.dev/gvisor/runsc/version.version=go-$V-$v'; mkdir -p out/gvisor-bin; go build -ldflags \"\$L\" -o out/runsc ./runsc; go build -ldflags \"\$L\" -o out/gvisor-bin/gvisor_sentry ./runsc/cmd/sentry; go build -ldflags \"\$L\" -o out/gvisor-bin/checkpointgofer ./runsc/checkpointgofer; go build -ldflags \"\$L\" -o out/gvisor-bin/runsc-metric-server ./runsc/cmd/metricserver"
+  docker run --rm -v gv7-gocache:/go -v gv7-buildcache:/root/.cache -v "$W/src-$v:/src" -w /src -e CGO_ENABLED=0 -e GOOS=linux -e GOARCH=arm64 -e GOFLAGS=-buildvcs=false golang:1.27 sh -c "set -e; L='-X gvisor.dev/gvisor/runsc/version.version=go-$V-$v'; mkdir -p out/gvisor-bin; go build -ldflags \"\$L\" -o out/runsc ./runsc; go build -ldflags \"\$L\" -o out/gvisor-bin/gvisor_sentry ./runsc/cmd/sentry; go build -ldflags \"\$L\" -o out/gvisor-bin/checkpointgofer ./runsc/checkpointgofer; go build -ldflags \"\$L\" -o out/gvisor-bin/runsc-metric-server ./runsc/cmd/metricserver"
   ls -la "$W/src-$v/out" "$W/src-$v/out/gvisor-bin" | awk 'NF>5{print $5, $9}'
 done
 mkdir -p "$W/csidecars"
