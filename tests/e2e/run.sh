@@ -19,7 +19,8 @@
 #   5. from outside the sandbox, the same addresses answer
 #   6. a sandbox pod resolves the cluster's names and no outside name, and
 #      cannot ask the cluster's CoreDNS, which forwards; outside the sandbox
-#      the same outside name resolves
+#      the same outside name resolves; a pod made from the agents' Job that
+#      asks from its first instant gets nothing but the MCP server
 #   7. with the sandbox's egress opened by mistake, corp and the tools'
 #      upstreams still refuse it; with the mistake undone, the first wall
 #      holds again
@@ -48,7 +49,7 @@ measure() { measured+=("$1"); printf '  ..    %s\n' "$1"; }
 # shellcheck disable=SC2329  # called by the EXIT trap
 cleanup() {
   kubectl -n agents delete networkpolicy e2e-open-egress --ignore-not-found >/dev/null 2>&1
-  kubectl -n agents delete pod e2e-probe e2e-wall e2e-hog e2e-tokens --ignore-not-found --wait=false >/dev/null 2>&1
+  kubectl -n agents delete pod e2e-probe e2e-wall e2e-hog e2e-tokens e2e-first-instant --ignore-not-found --wait=false >/dev/null 2>&1
   kubectl delete namespace e2e-control --ignore-not-found --wait=false >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -286,6 +287,60 @@ if kubectl -n agents logs e2e-first-query 2>/dev/null | sed -n '/^Name:/,$p' | g
   measure "a new sandbox pod's first query, before the network plugin knows the pod: answered by the cluster's CoreDNS (the gate is why the agents do not start until it stops)"
 else
   measure "a new sandbox pod's first query, before the network plugin knows the pod: not answered this run"
+fi
+# Checked: what the gate is for. A pod made from the agents' own Job, its gate
+# included, whose command asks from its very first instant, for three
+# seconds, one loop per question, all started at once and with busybox, which
+# starts in milliseconds on gVisor (curl took long enough that the policy had
+# taken hold before its first packet): the internet by address, over TCP and
+# over DNS, and the cluster's CoreDNS, which its policy refuses; and the MCP
+# server, which it allows. The MCP server must answer the first try, so the
+# network is up when the agent starts; nothing else may answer any try.
+# Without the gate the same pod got out (ADR 3).
+# shellcheck disable=SC2016
+first_instant='
+tcp() { printf "HEAD / HTTP/1.0\r\nHost: %s\r\n\r\n" "$1" | nc -w 1 "$1" "$2" 2>/dev/null | head -1 | grep -q "^HTTP/"; }
+dns() { nslookup -timeout=1 example.com "$1" 2>/dev/null | sed -n "/^Name:/,\$p" | grep -qE "^Address:? [0-9]"; }
+http() { wget -S -q -T 1 -O /dev/null "$1" 2>&1 | grep -q "HTTP/"; }
+ask() { name="$1"; shift; end=$(( $(date +%s) + 3 )); while [ "$(date +%s)" -lt "$end" ]; do if "$@"; then echo "$name answered"; else echo "$name nothing"; fi; done; }
+ask internet-tcp tcp 1.1.1.1 80 &
+ask internet-dns dns 1.1.1.1 &
+ask cluster-dns dns "$1" &
+ask mcp-server http "$2" &
+wait'
+python3 - "$ROOT/manifests/agent/job.yaml" "$BUSYBOX" "$first_instant" "$kube_dns" "$MCP" <<'PY' | kubectl apply -f - >/dev/null
+import json, subprocess, sys
+job_file, image, script, *args = sys.argv[1:]
+# The agents' first Job as the cluster reads it, so the pod is theirs line for
+# line but for what its one container runs.
+doc = open(job_file, encoding="utf-8").read().split("\n---\n")[0]
+job = json.loads(subprocess.run(["kubectl", "create", "--dry-run=client", "-o", "json", "-f", "-"],
+                                input=doc, capture_output=True, text=True, check=True).stdout)
+template = job["spec"]["template"]
+spec = template["spec"]
+assert [c["name"] for c in spec["initContainers"]] == ["wait-for-the-wall"], spec.get("initContainers")
+(agent,) = spec["containers"]
+agent.update(image=image, command=["sh", "-c", script, "sh", *args])
+agent.pop("args", None)
+print(json.dumps({"apiVersion": "v1", "kind": "Pod",
+                  "metadata": {"name": "e2e-first-instant", "namespace": "agents",
+                               "labels": template["metadata"].get("labels", {})},
+                  "spec": spec}))
+PY
+finished agents e2e-first-instant >/dev/null
+first="$(kubectl -n agents logs e2e-first-instant -c agent 2>/dev/null)"
+door="$(awk '$1 == "mcp-server" {print $2; exit}' <<<"$first")"
+refused="$(awk '$1 == "internet-tcp" || $1 == "internet-dns" || $1 == "cluster-dns"' <<<"$first")"
+tries="$(grep -c '^internet-tcp ' <<<"$first")"
+if [ "$door" = answered ]; then
+  pass "control: a pod made from the agents' Job reaches the MCP server on its first try after the gate"
+else
+  fail "control: a pod made from the agents' Job did not reach the MCP server on its first try, so its silence below proves nothing: $(sort <<<"$first" | uniq -c | tr -s ' ' | paste -sd ';' -)"
+fi
+if [ "$tries" -gt 0 ] && ! grep -q ' answered$' <<<"$refused"; then
+  pass "a pod made from the agents' Job, asking from its first instant, got no answer from the internet (TCP and DNS) or the cluster's CoreDNS ($(wc -l <<<"$refused" | tr -d ' ') tries in 3 s)"
+else
+  fail "a pod made from the agents' Job got an answer at its first instant: $(grep ' answered$' <<<"$refused" | sort | uniq -c | tr -s ' ' | paste -sd ';' -)"
 fi
 kubectl -n e2e-control run e2e-control-names --image="$BUSYBOX" --restart=Never --command -- nslookup -timeout=3 example.com >/dev/null 2>&1
 [ "$(finished e2e-control e2e-control-names)" = Succeeded ] || true
